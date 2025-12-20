@@ -1,0 +1,51 @@
+🔍 *WHATSAPP STATUS DEBUG REPORT*
+
+📡 *1. SOCKET/CONNECTION CHECK*
+├─ Socket type: Object
+├─ Connection open: ❌ NO
+├─ User logged in: ✅ YES
+├─ Bot number: 254703397679:27
+├─ Status methods found: 6
+├─ Methods: sendPresenceUpdate, presenceSubscribe, fetchStatus, updateProfileStatus, updateBlockStatus, updateStatusPrivacy
+└─ Store exists: ❌ NO
+
+📋 *2. STORE ANALYSIS*
+❌ No store available
+
+🧪 *3. STATUS VIEWING TESTS*
+1. fetchStatus: ✅ SUCCESS
+2. sendPresenceUpdate: ✅ SUCCESS
+3. findStatusContact: ❌ FAILED
+   Error: Status contact not found
+4. findStatusMessages: ❌ FAILED
+   Error: No chats
+
+📢 *4. AVAILABLE EVENTS*
+├─ Total events: 9
+├─ Status events: ❌ NONE FOUND
+└─ Active listeners: 0
+
+🎯 *5. REAL-TIME STATUS DETECTION ATTEMPT*
+✅ Listening to: messages.upsert
+✅ Listening to: presence.update
+✅ Listening to: connection.update
+✅ Listening to: chats.upsert
+✅ Listening to: contacts.upsert
+
+🚀 *6. WORKING SOLUTION*
+
+Based on the debug results, here's what works:
+
+✅ *WORKING METHODS:*
+• fetchStatus
+• sendPresenceUpdate
+
+🎯 *RECOMMENDED APPROACHES:*
+1. *Passive Monitoring*: Listen to all events and filter
+2. *Contact Activity*: Track when contacts are active
+3. *Profile Changes*: Monitor profile picture/name updates
+4. *Message Patterns*: Look for status-related messages
+5. *Presence Tracking*: Use presence updates as indicators
+
+⚡ *IMMEDIATE ACTION:*
+Run: `.statusmonitor on` to start monitoring

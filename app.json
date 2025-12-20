@@ -1,0 +1,28 @@
+{
+  "name": "WolfBot",
+  "description": "A powerful Baileys WhatsApp bot with wolf-themed features.",
+  "repository": "https://github.com/777Wolf-dot/Silent-Wolf--Bot",
+  "logo": "https://i.ibb.co/HDCwvyhT/wolfbot.jpg",
+  "keywords": ["whatsapp", "bot", "baileys", "wolf", "nodejs"],
+
+  "env": {
+    "OWNER_NUMBER": {
+      "description": "Enter your WhatsApp number in international format (e.g. 2547xxxxxxx)",
+      "required": true
+    },
+   
+    "SESSION_ID": {
+      "description": "Paste your generated Session ID here (optional)",
+      "required": false
+    }
+   
+      },
+    
+    
+    
+  
+
+  "buildpacks": [
+    { "url": "heroku/nodejs" }
+  ]
+}

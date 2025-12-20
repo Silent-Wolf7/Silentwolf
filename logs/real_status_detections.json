@@ -1,0 +1,37 @@
+[
+  {
+    "timestamp": "2025-12-18T19:32:44.664Z",
+    "type": "info",
+    "message": "Setting up REAL status detection..."
+  },
+  {
+    "timestamp": "2025-12-18T19:32:44.665Z",
+    "type": "info",
+    "message": "Setting up WebSocket interception..."
+  },
+  {
+    "timestamp": "2025-12-18T19:32:44.677Z",
+    "type": "success",
+    "message": "WebSocket interception active"
+  },
+  {
+    "timestamp": "2025-12-18T19:32:44.689Z",
+    "type": "success",
+    "message": "Event listener setup complete"
+  },
+  {
+    "timestamp": "2025-12-18T19:32:44.700Z",
+    "type": "success",
+    "message": "Presence monitoring active"
+  },
+  {
+    "timestamp": "2025-12-18T19:32:44.710Z",
+    "type": "success",
+    "message": "Real status detection ready"
+  },
+  {
+    "timestamp": "2025-12-18T19:32:44.722Z",
+    "type": "info",
+    "message": "Post a WhatsApp status to test detection"
+  }
+]

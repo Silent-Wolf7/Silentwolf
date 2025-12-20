@@ -1,0 +1,885 @@
+{
+  "sessionId": "status_diag_1766085128615",
+  "startTime": 1766085128615,
+  "timestamp": "2025-12-18T19:12:08.616Z",
+  "botInfo": {
+    "jid": "254703397679:25@s.whatsapp.net",
+    "platform": "unknown",
+    "phone": "254703397679:25"
+  },
+  "tests": {
+    "Socket Connection": {
+      "name": "Socket Connection",
+      "startTime": 1766085128616,
+      "status": "COMPLETED",
+      "duration": 1,
+      "result": {
+        "exists": true,
+        "hasEv": true,
+        "userJid": "254703397679:25@s.whatsapp.net",
+        "connectionState": "unknown",
+        "events": [],
+        "eventCount": 0,
+        "wsOpen": false,
+        "presenceTest": "SUCCESS"
+      },
+      "endTime": 1766085128618
+    },
+    "socketConnection": {
+      "exists": true,
+      "hasEv": true,
+      "userJid": "254703397679:25@s.whatsapp.net",
+      "connectionState": "unknown",
+      "events": [],
+      "eventCount": 0,
+      "wsOpen": false,
+      "presenceTest": "SUCCESS"
+    },
+    "Event System": {
+      "name": "Event System",
+      "startTime": 1766085128618,
+      "status": "COMPLETED",
+      "duration": 5007,
+      "result": {
+        "messagesUpsert": true,
+        "presenceUpdate": false,
+        "connectionUpdate": false,
+        "testMessageReceived": false,
+        "timeout": true
+      },
+      "endTime": 1766085133625
+    },
+    "eventSystem": {
+      "messagesUpsert": true,
+      "presenceUpdate": false,
+      "connectionUpdate": false,
+      "testMessageReceived": false,
+      "timeout": true
+    },
+    "Contact Visibility": {
+      "name": "Contact Visibility",
+      "startTime": 1766085133626,
+      "status": "COMPLETED",
+      "duration": 10019,
+      "result": {
+        "botNumber": "254703397679:25",
+        "contactChecks": [
+          {
+            "jid": "254703397679:25@s.whatsapp.net",
+            "status": "SELF_CHECK_SUCCESS",
+            "timestamp": "2025-12-18T19:12:13.627Z"
+          }
+        ],
+        "visibilityIssues": [
+          {
+            "type": "NO_PRESENCE_UPDATES",
+            "duration": 10000
+          }
+        ]
+      },
+      "endTime": 1766085143645
+    },
+    "contactVisibility": {
+      "botNumber": "254703397679:25",
+      "contactChecks": [
+        {
+          "jid": "254703397679:25@s.whatsapp.net",
+          "status": "SELF_CHECK_SUCCESS",
+          "timestamp": "2025-12-18T19:12:13.627Z"
+        }
+      ],
+      "visibilityIssues": [
+        {
+          "type": "NO_PRESENCE_UPDATES",
+          "duration": 10000
+        }
+      ]
+    },
+    "API Capabilities": {
+      "name": "API Capabilities",
+      "startTime": 1766085143645,
+      "status": "COMPLETED",
+      "duration": 1,
+      "result": {
+        "socketMethods": [
+          "constructor",
+          "__defineGetter__",
+          "__defineSetter__",
+          "hasOwnProperty",
+          "__lookupGetter__",
+          "__lookupSetter__",
+          "isPrototypeOf",
+          "propertyIsEnumerable",
+          "toString",
+          "valueOf",
+          "toLocaleString"
+        ],
+        "statusRelatedMethods": [],
+        "protocolMessageTypes": [
+          {
+            "key": "REVOKE",
+            "value": 0
+          },
+          {
+            "key": "EPHEMERAL_SETTING",
+            "value": 3
+          },
+          {
+            "key": "EPHEMERAL_SYNC_RESPONSE",
+            "value": 4
+          },
+          {
+            "key": "HISTORY_SYNC_NOTIFICATION",
+            "value": 5
+          },
+          {
+            "key": "APP_STATE_SYNC_KEY_SHARE",
+            "value": 6
+          },
+          {
+            "key": "APP_STATE_SYNC_KEY_REQUEST",
+            "value": 7
+          },
+          {
+            "key": "MSG_FANOUT_BACKFILL_REQUEST",
+            "value": 8
+          },
+          {
+            "key": "INITIAL_SECURITY_NOTIFICATION_SETTING_SYNC",
+            "value": 9
+          },
+          {
+            "key": "APP_STATE_FATAL_EXCEPTION_NOTIFICATION",
+            "value": 10
+          },
+          {
+            "key": "SHARE_PHONE_NUMBER",
+            "value": 11
+          },
+          {
+            "key": "MESSAGE_EDIT",
+            "value": 14
+          },
+          {
+            "key": "PEER_DATA_OPERATION_REQUEST_MESSAGE",
+            "value": 16
+          },
+          {
+            "key": "PEER_DATA_OPERATION_REQUEST_RESPONSE_MESSAGE",
+            "value": 17
+          },
+          {
+            "key": "REQUEST_WELCOME_MESSAGE",
+            "value": 18
+          },
+          {
+            "key": "BOT_FEEDBACK_MESSAGE",
+            "value": 19
+          },
+          {
+            "key": "MEDIA_NOTIFY_MESSAGE",
+            "value": 20
+          },
+          {
+            "key": "CLOUD_API_THREAD_CONTROL_NOTIFICATION",
+            "value": 21
+          },
+          {
+            "key": "LID_MIGRATION_MAPPING_SYNC",
+            "value": 22
+          },
+          {
+            "key": "REMINDER_MESSAGE",
+            "value": 23
+          },
+          {
+            "key": "BOT_MEMU_ONBOARDING_MESSAGE",
+            "value": 24
+          },
+          {
+            "key": "STATUS_MENTION_MESSAGE",
+            "value": 25
+          },
+          {
+            "key": "STOP_GENERATION_MESSAGE",
+            "value": 26
+          },
+          {
+            "key": "LIMIT_SHARING",
+            "value": 27
+          },
+          {
+            "key": "AI_PSI_METADATA",
+            "value": 28
+          },
+          {
+            "key": "AI_QUERY_FANOUT",
+            "value": 29
+          },
+          {
+            "key": "GROUP_MEMBER_LABEL_CHANGE",
+            "value": 30
+          }
+        ],
+        "capabilities": {
+          "readReceipt": "TEST_ATTEMPTED"
+        }
+      },
+      "endTime": 1766085143646
+    },
+    "apiCapabilities": {
+      "socketMethods": [
+        "constructor",
+        "__defineGetter__",
+        "__defineSetter__",
+        "hasOwnProperty",
+        "__lookupGetter__",
+        "__lookupSetter__",
+        "isPrototypeOf",
+        "propertyIsEnumerable",
+        "toString",
+        "valueOf",
+        "toLocaleString"
+      ],
+      "statusRelatedMethods": [],
+      "protocolMessageTypes": [
+        {
+          "key": "REVOKE",
+          "value": 0
+        },
+        {
+          "key": "EPHEMERAL_SETTING",
+          "value": 3
+        },
+        {
+          "key": "EPHEMERAL_SYNC_RESPONSE",
+          "value": 4
+        },
+        {
+          "key": "HISTORY_SYNC_NOTIFICATION",
+          "value": 5
+        },
+        {
+          "key": "APP_STATE_SYNC_KEY_SHARE",
+          "value": 6
+        },
+        {
+          "key": "APP_STATE_SYNC_KEY_REQUEST",
+          "value": 7
+        },
+        {
+          "key": "MSG_FANOUT_BACKFILL_REQUEST",
+          "value": 8
+        },
+        {
+          "key": "INITIAL_SECURITY_NOTIFICATION_SETTING_SYNC",
+          "value": 9
+        },
+        {
+          "key": "APP_STATE_FATAL_EXCEPTION_NOTIFICATION",
+          "value": 10
+        },
+        {
+          "key": "SHARE_PHONE_NUMBER",
+          "value": 11
+        },
+        {
+          "key": "MESSAGE_EDIT",
+          "value": 14
+        },
+        {
+          "key": "PEER_DATA_OPERATION_REQUEST_MESSAGE",
+          "value": 16
+        },
+        {
+          "key": "PEER_DATA_OPERATION_REQUEST_RESPONSE_MESSAGE",
+          "value": 17
+        },
+        {
+          "key": "REQUEST_WELCOME_MESSAGE",
+          "value": 18
+        },
+        {
+          "key": "BOT_FEEDBACK_MESSAGE",
+          "value": 19
+        },
+        {
+          "key": "MEDIA_NOTIFY_MESSAGE",
+          "value": 20
+        },
+        {
+          "key": "CLOUD_API_THREAD_CONTROL_NOTIFICATION",
+          "value": 21
+        },
+        {
+          "key": "LID_MIGRATION_MAPPING_SYNC",
+          "value": 22
+        },
+        {
+          "key": "REMINDER_MESSAGE",
+          "value": 23
+        },
+        {
+          "key": "BOT_MEMU_ONBOARDING_MESSAGE",
+          "value": 24
+        },
+        {
+          "key": "STATUS_MENTION_MESSAGE",
+          "value": 25
+        },
+        {
+          "key": "STOP_GENERATION_MESSAGE",
+          "value": 26
+        },
+        {
+          "key": "LIMIT_SHARING",
+          "value": 27
+        },
+        {
+          "key": "AI_PSI_METADATA",
+          "value": 28
+        },
+        {
+          "key": "AI_QUERY_FANOUT",
+          "value": 29
+        },
+        {
+          "key": "GROUP_MEMBER_LABEL_CHANGE",
+          "value": 30
+        }
+      ],
+      "capabilities": {
+        "readReceipt": "TEST_ATTEMPTED"
+      }
+    }
+  },
+  "findings": [
+    {
+      "id": "finding_1",
+      "title": "Event Delivery Issue",
+      "description": "Messages sent by bot are not triggering events",
+      "severity": "HIGH",
+      "evidence": {
+        "messagesUpsert": true,
+        "presenceUpdate": false,
+        "connectionUpdate": false,
+        "testMessageReceived": false,
+        "timeout": true
+      },
+      "timestamp": "2025-12-18T19:12:13.625Z"
+    },
+    {
+      "id": "finding_2",
+      "title": "No Presence Updates Received",
+      "description": "No presence.update events received in 10 seconds",
+      "severity": "MEDIUM",
+      "evidence": {
+        "botNumber": "254703397679:25",
+        "contactChecks": [
+          {
+            "jid": "254703397679:25@s.whatsapp.net",
+            "status": "SELF_CHECK_SUCCESS",
+            "timestamp": "2025-12-18T19:12:13.627Z"
+          }
+        ],
+        "visibilityIssues": [
+          {
+            "type": "NO_PRESENCE_UPDATES",
+            "duration": 10000
+          }
+        ]
+      },
+      "timestamp": "2025-12-18T19:12:23.643Z"
+    },
+    {
+      "id": "finding_3",
+      "title": "No Status API Methods",
+      "description": "Socket does not expose status-related methods",
+      "severity": "HIGH",
+      "evidence": {
+        "socketMethods": [
+          "constructor",
+          "__defineGetter__",
+          "__defineSetter__",
+          "hasOwnProperty",
+          "__lookupGetter__",
+          "__lookupSetter__",
+          "isPrototypeOf",
+          "propertyIsEnumerable",
+          "toString",
+          "valueOf",
+          "toLocaleString"
+        ],
+        "statusRelatedMethods": [],
+        "protocolMessageTypes": [
+          {
+            "key": "REVOKE",
+            "value": 0
+          },
+          {
+            "key": "EPHEMERAL_SETTING",
+            "value": 3
+          },
+          {
+            "key": "EPHEMERAL_SYNC_RESPONSE",
+            "value": 4
+          },
+          {
+            "key": "HISTORY_SYNC_NOTIFICATION",
+            "value": 5
+          },
+          {
+            "key": "APP_STATE_SYNC_KEY_SHARE",
+            "value": 6
+          },
+          {
+            "key": "APP_STATE_SYNC_KEY_REQUEST",
+            "value": 7
+          },
+          {
+            "key": "MSG_FANOUT_BACKFILL_REQUEST",
+            "value": 8
+          },
+          {
+            "key": "INITIAL_SECURITY_NOTIFICATION_SETTING_SYNC",
+            "value": 9
+          },
+          {
+            "key": "APP_STATE_FATAL_EXCEPTION_NOTIFICATION",
+            "value": 10
+          },
+          {
+            "key": "SHARE_PHONE_NUMBER",
+            "value": 11
+          },
+          {
+            "key": "MESSAGE_EDIT",
+            "value": 14
+          },
+          {
+            "key": "PEER_DATA_OPERATION_REQUEST_MESSAGE",
+            "value": 16
+          },
+          {
+            "key": "PEER_DATA_OPERATION_REQUEST_RESPONSE_MESSAGE",
+            "value": 17
+          },
+          {
+            "key": "REQUEST_WELCOME_MESSAGE",
+            "value": 18
+          },
+          {
+            "key": "BOT_FEEDBACK_MESSAGE",
+            "value": 19
+          },
+          {
+            "key": "MEDIA_NOTIFY_MESSAGE",
+            "value": 20
+          },
+          {
+            "key": "CLOUD_API_THREAD_CONTROL_NOTIFICATION",
+            "value": 21
+          },
+          {
+            "key": "LID_MIGRATION_MAPPING_SYNC",
+            "value": 22
+          },
+          {
+            "key": "REMINDER_MESSAGE",
+            "value": 23
+          },
+          {
+            "key": "BOT_MEMU_ONBOARDING_MESSAGE",
+            "value": 24
+          },
+          {
+            "key": "STATUS_MENTION_MESSAGE",
+            "value": 25
+          },
+          {
+            "key": "STOP_GENERATION_MESSAGE",
+            "value": 26
+          },
+          {
+            "key": "LIMIT_SHARING",
+            "value": 27
+          },
+          {
+            "key": "AI_PSI_METADATA",
+            "value": 28
+          },
+          {
+            "key": "AI_QUERY_FANOUT",
+            "value": 29
+          },
+          {
+            "key": "GROUP_MEMBER_LABEL_CHANGE",
+            "value": 30
+          }
+        ],
+        "capabilities": {
+          "readReceipt": "TEST_ATTEMPTED"
+        }
+      },
+      "timestamp": "2025-12-18T19:12:23.646Z"
+    },
+    {
+      "id": "finding_4",
+      "title": "Skipped Status Test",
+      "description": "Status broadcast test skipped because event system is not working",
+      "severity": "HIGH",
+      "evidence": null,
+      "timestamp": "2025-12-18T19:12:23.646Z"
+    }
+  ],
+  "recommendations": [
+    {
+      "id": "rec_1",
+      "title": "Check Contact Sync",
+      "description": "Ensure bot account is in contacts of status posters",
+      "priority": "MEDIUM",
+      "relatedFinding": "finding_3",
+      "timestamp": "2025-12-18T19:12:23.644Z"
+    },
+    {
+      "id": "rec_2",
+      "title": "Implement Custom Status Handler",
+      "description": "Create custom status detection using raw WebSocket messages",
+      "priority": "HIGH",
+      "relatedFinding": "finding_4",
+      "timestamp": "2025-12-18T19:12:23.646Z"
+    }
+  ],
+  "rawEvents": [],
+  "detailedLogs": [
+    {
+      "timestamp": "2025-12-18T19:12:08.616Z",
+      "level": "INFO",
+      "category": "MAIN",
+      "message": "Starting comprehensive status diagnostic...",
+      "data": null
+    },
+    {
+      "timestamp": "2025-12-18T19:12:08.616Z",
+      "level": "INFO",
+      "category": "TEST",
+      "message": "Starting test: Socket Connection",
+      "data": null
+    },
+    {
+      "timestamp": "2025-12-18T19:12:08.616Z",
+      "level": "DEBUG",
+      "category": "SOCKET",
+      "message": "Testing socket connection...",
+      "data": null
+    },
+    {
+      "timestamp": "2025-12-18T19:12:08.617Z",
+      "level": "INFO",
+      "category": "SOCKET",
+      "message": "Socket connection test: SUCCESS",
+      "data": null
+    },
+    {
+      "timestamp": "2025-12-18T19:12:08.618Z",
+      "level": "INFO",
+      "category": "TEST",
+      "message": "Completed test: Socket Connection (1ms)",
+      "data": null
+    },
+    {
+      "timestamp": "2025-12-18T19:12:08.618Z",
+      "level": "INFO",
+      "category": "TEST",
+      "message": "Starting test: Event System",
+      "data": null
+    },
+    {
+      "timestamp": "2025-12-18T19:12:08.618Z",
+      "level": "DEBUG",
+      "category": "EVENTS",
+      "message": "Testing event system...",
+      "data": null
+    },
+    {
+      "timestamp": "2025-12-18T19:12:10.285Z",
+      "level": "INFO",
+      "category": "TEST",
+      "message": "Test message sent",
+      "data": null
+    },
+    {
+      "timestamp": "2025-12-18T19:12:10.394Z",
+      "level": "DEBUG",
+      "category": "EVENT",
+      "message": "Message received - JID: 205270009532505@lid",
+      "data": {
+        "type": "append",
+        "fromMe": true,
+        "participant": null
+      }
+    },
+    {
+      "timestamp": "2025-12-18T19:12:13.625Z",
+      "level": "HIGH",
+      "category": "FINDING",
+      "message": "Event Delivery Issue: Messages sent by bot are not triggering events",
+      "data": {
+        "messagesUpsert": true,
+        "presenceUpdate": false,
+        "connectionUpdate": false,
+        "testMessageReceived": false,
+        "timeout": true
+      }
+    },
+    {
+      "timestamp": "2025-12-18T19:12:13.625Z",
+      "level": "INFO",
+      "category": "TEST",
+      "message": "Completed test: Event System (5007ms)",
+      "data": null
+    },
+    {
+      "timestamp": "2025-12-18T19:12:13.625Z",
+      "level": "INFO",
+      "category": "TEST",
+      "message": "Starting test: Contact Visibility",
+      "data": null
+    },
+    {
+      "timestamp": "2025-12-18T19:12:13.626Z",
+      "level": "DEBUG",
+      "category": "CONTACT",
+      "message": "Testing contact visibility...",
+      "data": null
+    },
+    {
+      "timestamp": "2025-12-18T19:12:13.627Z",
+      "level": "INFO",
+      "category": "CONTACT",
+      "message": "Self-presence check successful",
+      "data": null
+    },
+    {
+      "timestamp": "2025-12-18T19:12:23.644Z",
+      "level": "MEDIUM",
+      "category": "FINDING",
+      "message": "No Presence Updates Received: No presence.update events received in 10 seconds",
+      "data": {
+        "botNumber": "254703397679:25",
+        "contactChecks": [
+          {
+            "jid": "254703397679:25@s.whatsapp.net",
+            "status": "SELF_CHECK_SUCCESS",
+            "timestamp": "2025-12-18T19:12:13.627Z"
+          }
+        ],
+        "visibilityIssues": [
+          {
+            "type": "NO_PRESENCE_UPDATES",
+            "duration": 10000
+          }
+        ]
+      }
+    },
+    {
+      "timestamp": "2025-12-18T19:12:23.644Z",
+      "level": "INFO",
+      "category": "RECOMMENDATION",
+      "message": "Check Contact Sync: Ensure bot account is in contacts of status posters",
+      "data": null
+    },
+    {
+      "timestamp": "2025-12-18T19:12:23.645Z",
+      "level": "INFO",
+      "category": "TEST",
+      "message": "Completed test: Contact Visibility (10019ms)",
+      "data": null
+    },
+    {
+      "timestamp": "2025-12-18T19:12:23.645Z",
+      "level": "INFO",
+      "category": "TEST",
+      "message": "Starting test: API Capabilities",
+      "data": null
+    },
+    {
+      "timestamp": "2025-12-18T19:12:23.645Z",
+      "level": "DEBUG",
+      "category": "API",
+      "message": "Testing API capabilities...",
+      "data": null
+    },
+    {
+      "timestamp": "2025-12-18T19:12:23.646Z",
+      "level": "DEBUG",
+      "category": "API",
+      "message": "Read receipt test attempted",
+      "data": null
+    },
+    {
+      "timestamp": "2025-12-18T19:12:23.646Z",
+      "level": "HIGH",
+      "category": "FINDING",
+      "message": "No Status API Methods: Socket does not expose status-related methods",
+      "data": {
+        "socketMethods": [
+          "constructor",
+          "__defineGetter__",
+          "__defineSetter__",
+          "hasOwnProperty",
+          "__lookupGetter__",
+          "__lookupSetter__",
+          "isPrototypeOf",
+          "propertyIsEnumerable",
+          "toString",
+          "valueOf",
+          "toLocaleString"
+        ],
+        "statusRelatedMethods": [],
+        "protocolMessageTypes": [
+          {
+            "key": "REVOKE",
+            "value": 0
+          },
+          {
+            "key": "EPHEMERAL_SETTING",
+            "value": 3
+          },
+          {
+            "key": "EPHEMERAL_SYNC_RESPONSE",
+            "value": 4
+          },
+          {
+            "key": "HISTORY_SYNC_NOTIFICATION",
+            "value": 5
+          },
+          {
+            "key": "APP_STATE_SYNC_KEY_SHARE",
+            "value": 6
+          },
+          {
+            "key": "APP_STATE_SYNC_KEY_REQUEST",
+            "value": 7
+          },
+          {
+            "key": "MSG_FANOUT_BACKFILL_REQUEST",
+            "value": 8
+          },
+          {
+            "key": "INITIAL_SECURITY_NOTIFICATION_SETTING_SYNC",
+            "value": 9
+          },
+          {
+            "key": "APP_STATE_FATAL_EXCEPTION_NOTIFICATION",
+            "value": 10
+          },
+          {
+            "key": "SHARE_PHONE_NUMBER",
+            "value": 11
+          },
+          {
+            "key": "MESSAGE_EDIT",
+            "value": 14
+          },
+          {
+            "key": "PEER_DATA_OPERATION_REQUEST_MESSAGE",
+            "value": 16
+          },
+          {
+            "key": "PEER_DATA_OPERATION_REQUEST_RESPONSE_MESSAGE",
+            "value": 17
+          },
+          {
+            "key": "REQUEST_WELCOME_MESSAGE",
+            "value": 18
+          },
+          {
+            "key": "BOT_FEEDBACK_MESSAGE",
+            "value": 19
+          },
+          {
+            "key": "MEDIA_NOTIFY_MESSAGE",
+            "value": 20
+          },
+          {
+            "key": "CLOUD_API_THREAD_CONTROL_NOTIFICATION",
+            "value": 21
+          },
+          {
+            "key": "LID_MIGRATION_MAPPING_SYNC",
+            "value": 22
+          },
+          {
+            "key": "REMINDER_MESSAGE",
+            "value": 23
+          },
+          {
+            "key": "BOT_MEMU_ONBOARDING_MESSAGE",
+            "value": 24
+          },
+          {
+            "key": "STATUS_MENTION_MESSAGE",
+            "value": 25
+          },
+          {
+            "key": "STOP_GENERATION_MESSAGE",
+            "value": 26
+          },
+          {
+            "key": "LIMIT_SHARING",
+            "value": 27
+          },
+          {
+            "key": "AI_PSI_METADATA",
+            "value": 28
+          },
+          {
+            "key": "AI_QUERY_FANOUT",
+            "value": 29
+          },
+          {
+            "key": "GROUP_MEMBER_LABEL_CHANGE",
+            "value": 30
+          }
+        ],
+        "capabilities": {
+          "readReceipt": "TEST_ATTEMPTED"
+        }
+      }
+    },
+    {
+      "timestamp": "2025-12-18T19:12:23.646Z",
+      "level": "INFO",
+      "category": "RECOMMENDATION",
+      "message": "Implement Custom Status Handler: Create custom status detection using raw WebSocket messages",
+      "data": null
+    },
+    {
+      "timestamp": "2025-12-18T19:12:23.646Z",
+      "level": "INFO",
+      "category": "TEST",
+      "message": "Completed test: API Capabilities (1ms)",
+      "data": null
+    },
+    {
+      "timestamp": "2025-12-18T19:12:23.646Z",
+      "level": "HIGH",
+      "category": "FINDING",
+      "message": "Skipped Status Test: Status broadcast test skipped because event system is not working",
+      "data": null
+    },
+    {
+      "timestamp": "2025-12-18T19:12:23.646Z",
+      "level": "INFO",
+      "category": "REPORT",
+      "message": "Generating comprehensive diagnostic report...",
+      "data": null
+    }
+  ],
+  "config": {
+    "captureDuration": 60000,
+    "logToFile": true,
+    "filePrefix": "./logs/status_diagnostic"
+  }
+}
