@@ -1,770 +1,3 @@
-
-
-
-
-
-
-
-
-
-
-
-// // commands/fun/typing.js
-
-// // Typing Manager (State Management)
-// const typingConfig = {
-//   enabled: false,
-//   duration: 10, // seconds
-//   autoReply: true,
-//   activeTypers: new Map(), // userId -> intervalId
-//   botSock: null,
-//   isHooked: false,
-//   originalMessageHandler: null
-// };
-
-// class TypingManager {
-//   static initialize(sock) {
-//     if (!typingConfig.isHooked && sock) {
-//       typingConfig.botSock = sock;
-//       this.hookIntoBot();
-//       typingConfig.isHooked = true;
-//       console.log('🤖 Auto-typing system initialized and hooked!');
-//     }
-//   }
-
-//   static hookIntoBot() {
-//     if (!typingConfig.botSock || !typingConfig.botSock.ev) {
-//       console.log('⚠️ Could not hook into bot events');
-//       return;
-//     }
-
-//     // Store reference to the current message handler
-//     typingConfig.originalMessageHandler = typingConfig.botSock.ev.listenerCount('messages.upsert') > 0 
-//       ? 'exists' 
-//       : null;
-    
-//     // Create a new handler that first processes auto-typing, then passes through
-//     const messageHandler = async (data) => {
-//       // First, handle auto-typing
-//       await this.handleIncomingMessage(data);
-      
-//       // If there were existing handlers, we need to ensure commands still work
-//       // The command handler will pick up messages naturally
-//     };
-    
-//     // Remove any existing handler and add ours
-//     typingConfig.botSock.ev.removeAllListeners('messages.upsert');
-//     typingConfig.botSock.ev.on('messages.upsert', messageHandler);
-    
-//     console.log('✅ Auto-typing successfully hooked into message events');
-//   }
-
-//   static async handleIncomingMessage(data) {
-//     try {
-//       if (!data || !data.messages || data.messages.length === 0) return;
-      
-//       const m = data.messages[0];
-//       const sock = typingConfig.botSock;
-      
-//       // Skip if not enabled or if it's from the bot itself
-//       if (!m || !m.key || m.key.fromMe || !typingConfig.enabled) return;
-      
-//       // Check if it's a command (starts with prefix, usually "." or "!")
-//       const messageText = m.message?.conversation || 
-//                          m.message?.extendedTextMessage?.text || 
-//                          m.message?.imageMessage?.caption || '';
-      
-//       // Skip if it's a command (let the command handler process it first)
-//       if (messageText.trim().startsWith('.') || messageText.trim().startsWith('!')) {
-//         // Wait a bit to let command execute first
-//         await new Promise(resolve => setTimeout(resolve, 100));
-//         return;
-//       }
-      
-//       const userJid = m.key.participant || m.key.remoteJid;
-//       const chatJid = m.key.remoteJid;
-      
-//       if (!userJid || !chatJid) return;
-      
-//       // Check if user already has active typing
-//       if (typingConfig.activeTypers.has(userJid)) {
-//         return;
-//       }
-      
-//       // Start typing indicator
-//       await sock.sendPresenceUpdate('composing', chatJid);
-      
-//       let isTyping = true;
-      
-//       // Function to keep typing alive
-//       const keepTypingAlive = async () => {
-//         if (isTyping && typingConfig.enabled) {
-//           try {
-//             await sock.sendPresenceUpdate('composing', chatJid);
-//           } catch (err) {
-//             // Ignore errors in keep-alive
-//           }
-//         }
-//       };
-      
-//       // Keep refreshing the typing indicator every 2 seconds
-//       const typingInterval = setInterval(keepTypingAlive, 2000);
-//       typingConfig.activeTypers.set(userJid, typingInterval);
-      
-//       // Stop after specified duration
-//       setTimeout(async () => {
-//         isTyping = false;
-        
-//         // Clean up
-//         if (typingConfig.activeTypers.has(userJid)) {
-//           clearInterval(typingConfig.activeTypers.get(userJid));
-//           typingConfig.activeTypers.delete(userJid);
-//         }
-        
-//         // Stop typing indicator
-//         try {
-//           await sock.sendPresenceUpdate('paused', chatJid);
-//         } catch (err) {
-//           // Ignore stop errors
-//         }
-        
-//         // Send auto-reply if enabled
-//         if (typingConfig.autoReply && !m.key.fromMe && typingConfig.enabled) {
-//           try {
-//           ;
-//           } catch (err) {
-//             console.error("Failed to send auto-reply:", err);
-//           }
-//         }
-//       }, typingConfig.duration * 1000);
-      
-//     } catch (err) {
-//       console.error("Auto-typing handler error:", err);
-//     }
-//   }
-
-//   static toggle() {
-//     typingConfig.enabled = !typingConfig.enabled;
-//     console.log(`Auto-typing ${typingConfig.enabled ? 'ENABLED' : 'DISABLED'}`);
-    
-//     if (!typingConfig.enabled) {
-//       this.clearAllTypers();
-//     }
-    
-//     return typingConfig.enabled;
-//   }
-
-//   static status() {
-//     return {
-//       enabled: typingConfig.enabled,
-//       duration: typingConfig.duration,
-//       autoReply: typingConfig.autoReply,
-//       activeSessions: typingConfig.activeTypers.size,
-//       isHooked: typingConfig.isHooked
-//     };
-//   }
-
-//   static setDuration(seconds) {
-//     if (seconds >= 1 && seconds <= 60) {
-//       typingConfig.duration = seconds;
-//       return true;
-//     }
-//     return false;
-//   }
-
-//   static toggleAutoReply() {
-//     typingConfig.autoReply = !typingConfig.autoReply;
-//     return typingConfig.autoReply;
-//   }
-
-//   static clearAllTypers() {
-//     typingConfig.activeTypers.forEach((intervalId) => {
-//       clearInterval(intervalId);
-//     });
-//     typingConfig.activeTypers.clear();
-//   }
-
-//   static async manualTyping(sock, chatJid, duration, quotedMsg = null) {
-//     try {
-//       // Send initial message
-//       if (quotedMsg) {
-//         await sock.sendMessage(chatJid, {
-//           text: `🤖 *Manual Typing Simulation*\n\nI'll show 'typing...' for ${duration} seconds!`
-//         }, { quoted: quotedMsg });
-//       }
-      
-//       // Start typing indicator
-//       await sock.sendPresenceUpdate('composing', chatJid);
-      
-//       let isTyping = true;
-      
-//       // Function to keep typing alive
-//       const keepTypingAlive = async () => {
-//         if (isTyping) {
-//           await sock.sendPresenceUpdate('composing', chatJid);
-//         }
-//       };
-      
-//       // Keep refreshing the typing indicator every 2 seconds
-//       const typingInterval = setInterval(keepTypingAlive, 2000);
-      
-//       // Stop after specified duration
-//       return new Promise((resolve) => {
-//         setTimeout(async () => {
-//           isTyping = false;
-//           clearInterval(typingInterval);
-          
-//           // Stop typing indicator
-//           await sock.sendPresenceUpdate('paused', chatJid);
-          
-//           // Send completion message
-//           if (quotedMsg) {
-//             await sock.sendMessage(chatJid, {
-//               text: `✅ *Typing simulation complete!*\n\nTyped for ${duration} seconds!`
-//             }, { quoted: quotedMsg });
-//           }
-          
-//           resolve();
-//         }, duration * 1000);
-//       });
-      
-//     } catch (err) {
-//       console.error("Manual typing error:", err);
-//       throw err;
-//     }
-//   }
-// }
-
-// // Alternative approach - Use message interceptor instead of replacing handler
-// function setupMessageInterceptor(sock) {
-//   if (!sock || !sock.ev) return false;
-  
-//   // Add our handler alongside existing ones
-//   sock.ev.on('messages.upsert', async (data) => {
-//     await TypingManager.handleIncomingMessage(data);
-//   });
-  
-//   return true;
-// }
-
-// // Main Command Export
-// export default {
-//   name: "typing",
-//   alias: ["autotype", "fake", "typingsim", "typingtoggle", "atype", "typingmode"],
-//   desc: "Toggle auto fake typing when someone messages you 🕐",
-//   category: "Fun",
-//   usage: ".typing [on/off/duration/reply/status]",
-  
-//   async execute(sock, m, args) {
-//     try {
-//       const targetJid = m.key.remoteJid;
-      
-//       // Initialize on first command use (alternative method)
-//       if (!typingConfig.isHooked) {
-//         typingConfig.botSock = sock;
-//         setupMessageInterceptor(sock);
-//         typingConfig.isHooked = true;
-//         console.log('🤖 Auto-typing system initialized!');
-//       }
-      
-//       if (args.length === 0) {
-//         // Show status
-//         const status = TypingManager.status();
-//         const statusText = status.enabled ? "✅ *ENABLED*" : "❌ *DISABLED*";
-//         const activeSessions = status.activeSessions > 0 ? `\n• Active sessions: ${status.activeSessions}` : '';
-//         const hookStatus = status.isHooked ? '✅' : '❌';
-        
-//         await sock.sendMessage(targetJid, {
-//           text: `🤖 *Auto-Typing Manager*\n\n${statusText}\n\n📊 *Status:*\n• Hooked: ${hookStatus}\n• Auto-Typing: ${status.enabled ? 'ON 🟢' : 'OFF 🔴'}\n• Duration: ${status.duration} seconds\n• Auto-Reply: ${status.autoReply ? 'ON 🟢' : 'OFF 🔴'}${activeSessions}\n\n📝 *Commands:*\n.typing on - Enable auto-typing\n.typing off - Disable auto-typing\n.typing 15 - Set duration to 15s\n.typing reply - Toggle auto-reply\n.typing 5 - Manual typing for 5s\n.typing status - Show this status`
-//         }, { quoted: m });
-//         return;
-//       }
-      
-//       const arg = args[0].toLowerCase();
-      
-//       // Show status
-//       if (arg === 'status' || arg === 'info') {
-//         const status = TypingManager.status();
-//         const statusText = status.enabled ? "✅ *ENABLED*" : "❌ *DISABLED*";
-//         const activeSessions = status.activeSessions > 0 ? `\n• Active sessions: ${status.activeSessions}` : '';
-        
-//         await sock.sendMessage(targetJid, {
-//           text: `🤖 *Auto-Typing Status*\n\n${statusText}\n\n📊 *Settings:*\n• Auto-Typing: ${status.enabled ? 'ON 🟢' : 'OFF 🔴'}\n• Duration: ${status.duration} seconds\n• Auto-Reply: ${status.autoReply ? 'ON 🟢' : 'OFF 🔴'}${activeSessions}`
-//         }, { quoted: m });
-//         return;
-//       }
-      
-//       // Toggle on/off
-//       if (arg === 'on' || arg === 'enable' || arg === 'start') {
-//         const enabled = TypingManager.toggle();
-//         await sock.sendMessage(targetJid, {
-//           text: `✅ *Auto-Typing ${enabled ? 'ENABLED' : 'DISABLED'}*\n\n${enabled ? 'I will now automatically show typing when someone messages you! ✨' : 'Auto-typing has been turned off.'}\n\n⚙️ *Current Settings:*\n• Duration: ${TypingManager.status().duration}s\n• Auto-Reply: ${TypingManager.status().autoReply ? 'ON' : 'OFF'}`
-//         }, { quoted: m });
-//         return;
-//       }
-      
-//       if (arg === 'off' || arg === 'disable' || arg === 'stop') {
-//         const enabled = TypingManager.toggle();
-//         await sock.sendMessage(targetJid, {
-//           text: `✅ *Auto-Typing ${enabled ? 'ENABLED' : 'DISABLED'}*\n\n${enabled ? 'Auto-typing has been turned on! ✨' : 'I will no longer auto-type when messaged.'}`
-//         }, { quoted: m });
-//         return;
-//       }
-      
-//       // Toggle auto-reply
-//       if (arg === 'reply' || arg === 'autoreply') {
-//         const autoReply = TypingManager.toggleAutoReply();
-//         await sock.sendMessage(targetJid, {
-//           text: `✅ *Auto-Reply ${autoReply ? 'ENABLED' : 'DISABLED'}*\n\nI will ${autoReply ? 'now send' : 'no longer send'} a completion message after auto-typing.`
-//         }, { quoted: m });
-//         return;
-//       }
-      
-//       // Set duration
-//       const duration = parseInt(arg);
-//       if (!isNaN(duration) && duration >= 1 && duration <= 60) {
-//         const success = TypingManager.setDuration(duration);
-//         if (success) {
-//           await sock.sendMessage(targetJid, {
-//             text: `✅ *Duration Updated*\n\nAuto-typing duration set to ${duration} seconds.\n\n${TypingManager.status().enabled ? '⚡ Auto-typing is currently ACTIVE' : '💤 Auto-typing is INACTIVE (use `.typing on` to activate)'}`
-//           }, { quoted: m });
-//         } else {
-//           await sock.sendMessage(targetJid, {
-//             text: `❌ *Invalid Duration*\n\nPlease use a number between 1 and 60 seconds.`
-//           }, { quoted: m });
-//         }
-//         return;
-//       }
-      
-//       // Manual typing command
-//       if (!isNaN(duration) && duration >= 1 && duration <= 300) {
-//         // Send initial message
-//         await sock.sendMessage(targetJid, {
-//           text: `🤖 *Manual Typing Simulation*\n\nI'll show 'typing...' for ${duration} seconds!`
-//         }, { quoted: m });
-        
-//         // Do manual typing
-//         await TypingManager.manualTyping(sock, targetJid, duration, m);
-//         return;
-//       }
-      
-//       // If no valid command, show help
-//       await sock.sendMessage(targetJid, {
-//         text: `❓ *Invalid Command*\n\nUse:\n• \`.typing on\` - Enable auto-typing\n• \`.typing off\` - Disable auto-typing\n• \`.typing 15\` - Set duration to 15s\n• \`.typing reply\` - Toggle auto-reply\n• \`.typing\` - Show status\n• \`.typing 10\` - Manual typing for 10s`
-//       }, { quoted: m });
-      
-//     } catch (err) {
-//       console.error("Typing command error:", err);
-//       await sock.sendMessage(m.key.remoteJid, {
-//         text: `❌ Typing command failed: ${err.message}`
-//       }, { quoted: m });
-//     }
-//   }
-// };
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// // commands/fun/autotyping.js
-
-// // AutoTyping Manager (State Management)
-// const autoTypingConfig = {
-//   enabled: false,
-//   duration: 10, // seconds
-//   autoReply: true,
-//   activeTypers: new Map(), // userId -> intervalId
-//   botSock: null,
-//   isHooked: false,
-//   originalMessageHandler: null
-// };
-
-// class AutoTypingManager {
-//   static initialize(sock) {
-//     if (!autoTypingConfig.isHooked && sock) {
-//       autoTypingConfig.botSock = sock;
-//       this.hookIntoBot();
-//       autoTypingConfig.isHooked = true;
-//       console.log('🤖 Auto-typing system initialized and hooked!');
-//     }
-//   }
-
-//   static hookIntoBot() {
-//     if (!autoTypingConfig.botSock || !autoTypingConfig.botSock.ev) {
-//       console.log('⚠️ Could not hook into bot events');
-//       return;
-//     }
-
-//     // Store reference to the current message handler
-//     autoTypingConfig.originalMessageHandler = autoTypingConfig.botSock.ev.listenerCount('messages.upsert') > 0 
-//       ? 'exists' 
-//       : null;
-    
-//     // Create a new handler that first processes auto-typing, then passes through
-//     const messageHandler = async (data) => {
-//       // First, handle auto-typing
-//       await this.handleIncomingMessage(data);
-      
-//       // If there were existing handlers, we need to ensure commands still work
-//       // The command handler will pick up messages naturally
-//     };
-    
-//     // Remove any existing handler and add ours
-//     autoTypingConfig.botSock.ev.removeAllListeners('messages.upsert');
-//     autoTypingConfig.botSock.ev.on('messages.upsert', messageHandler);
-    
-//     console.log('✅ Auto-typing successfully hooked into message events');
-//   }
-
-//   static async handleIncomingMessage(data) {
-//     try {
-//       if (!data || !data.messages || data.messages.length === 0) return;
-      
-//       const m = data.messages[0];
-//       const sock = autoTypingConfig.botSock;
-      
-//       // Skip if not enabled or if it's from the bot itself
-//       if (!m || !m.key || m.key.fromMe || !autoTypingConfig.enabled) return;
-      
-//       // Check if it's a command (starts with prefix, usually "." or "!")
-//       const messageText = m.message?.conversation || 
-//                          m.message?.extendedTextMessage?.text || 
-//                          m.message?.imageMessage?.caption || '';
-      
-//       // Skip if it's a command (let the command handler process it first)
-//       if (messageText.trim().startsWith('.') || messageText.trim().startsWith('!')) {
-//         // Wait a bit to let command execute first
-//         await new Promise(resolve => setTimeout(resolve, 100));
-//         return;
-//       }
-      
-//       const userJid = m.key.participant || m.key.remoteJid;
-//       const chatJid = m.key.remoteJid;
-      
-//       if (!userJid || !chatJid) return;
-      
-//       // Check if user already has active typing
-//       if (autoTypingConfig.activeTypers.has(userJid)) {
-//         return;
-//       }
-      
-//       // Start typing indicator
-//       await sock.sendPresenceUpdate('composing', chatJid);
-      
-//       let isTyping = true;
-      
-//       // Function to keep typing alive
-//       const keepTypingAlive = async () => {
-//         if (isTyping && autoTypingConfig.enabled) {
-//           try {
-//             await sock.sendPresenceUpdate('composing', chatJid);
-//           } catch (err) {
-//             // Ignore errors in keep-alive
-//           }
-//         }
-//       };
-      
-//       // Keep refreshing the typing indicator every 2 seconds
-//       const typingInterval = setInterval(keepTypingAlive, 2000);
-//       autoTypingConfig.activeTypers.set(userJid, typingInterval);
-      
-//       // Stop after specified duration
-//       setTimeout(async () => {
-//         isTyping = false;
-        
-//         // Clean up
-//         if (autoTypingConfig.activeTypers.has(userJid)) {
-//           clearInterval(autoTypingConfig.activeTypers.get(userJid));
-//           autoTypingConfig.activeTypers.delete(userJid);
-//         }
-        
-//         // Stop typing indicator
-//         try {
-//           await sock.sendPresenceUpdate('paused', chatJid);
-//         } catch (err) {
-//           // Ignore stop errors
-//         }
-        
-//         // Send auto-reply if enabled
-//         if (autoTypingConfig.autoReply && !m.key.fromMe && autoTypingConfig.enabled) {
-//           try {
-//             // Auto-reply can be added here if needed
-//           } catch (err) {
-//             console.error("Failed to send auto-reply:", err);
-//           }
-//         }
-//       }, autoTypingConfig.duration * 1000);
-      
-//     } catch (err) {
-//       console.error("Auto-typing handler error:", err);
-//     }
-//   }
-
-//   static toggle() {
-//     autoTypingConfig.enabled = !autoTypingConfig.enabled;
-//     console.log(`Auto-typing ${autoTypingConfig.enabled ? 'ENABLED' : 'DISABLED'}`);
-    
-//     if (!autoTypingConfig.enabled) {
-//       this.clearAllTypers();
-//     }
-    
-//     return autoTypingConfig.enabled;
-//   }
-
-//   static status() {
-//     return {
-//       enabled: autoTypingConfig.enabled,
-//       duration: autoTypingConfig.duration,
-//       autoReply: autoTypingConfig.autoReply,
-//       activeSessions: autoTypingConfig.activeTypers.size,
-//       isHooked: autoTypingConfig.isHooked
-//     };
-//   }
-
-//   static setDuration(seconds) {
-//     if (seconds >= 1 && seconds <= 60) {
-//       autoTypingConfig.duration = seconds;
-//       return true;
-//     }
-//     return false;
-//   }
-
-//   static toggleAutoReply() {
-//     autoTypingConfig.autoReply = !autoTypingConfig.autoReply;
-//     return autoTypingConfig.autoReply;
-//   }
-
-//   static clearAllTypers() {
-//     autoTypingConfig.activeTypers.forEach((intervalId) => {
-//       clearInterval(intervalId);
-//     });
-//     autoTypingConfig.activeTypers.clear();
-//   }
-
-//   static async manualTyping(sock, chatJid, duration, quotedMsg = null) {
-//     try {
-//       // Send initial message
-//       if (quotedMsg) {
-//         await sock.sendMessage(chatJid, {
-//           text: `🤖 *Manual Typing Simulation*\n\nI'll show 'typing...' for ${duration} seconds!`
-//         }, { quoted: quotedMsg });
-//       }
-      
-//       // Start typing indicator
-//       await sock.sendPresenceUpdate('composing', chatJid);
-      
-//       let isTyping = true;
-      
-//       // Function to keep typing alive
-//       const keepTypingAlive = async () => {
-//         if (isTyping) {
-//           await sock.sendPresenceUpdate('composing', chatJid);
-//         }
-//       };
-      
-//       // Keep refreshing the typing indicator every 2 seconds
-//       const typingInterval = setInterval(keepTypingAlive, 2000);
-      
-//       // Stop after specified duration
-//       return new Promise((resolve) => {
-//         setTimeout(async () => {
-//           isTyping = false;
-//           clearInterval(typingInterval);
-          
-//           // Stop typing indicator
-//           await sock.sendPresenceUpdate('paused', chatJid);
-          
-//           // Send completion message
-//           if (quotedMsg) {
-//             await sock.sendMessage(chatJid, {
-//               text: `✅ *Typing simulation complete!*\n\nTyped for ${duration} seconds!`
-//             }, { quoted: quotedMsg });
-//           }
-          
-//           resolve();
-//         }, duration * 1000);
-//       });
-      
-//     } catch (err) {
-//       console.error("Manual typing error:", err);
-//       throw err;
-//     }
-//   }
-// }
-
-// // Alternative approach - Use message interceptor instead of replacing handler
-// function setupMessageInterceptor(sock) {
-//   if (!sock || !sock.ev) return false;
-  
-//   // Add our handler alongside existing ones
-//   sock.ev.on('messages.upsert', async (data) => {
-//     await AutoTypingManager.handleIncomingMessage(data);
-//   });
-  
-//   return true;
-// }
-
-// // Main Command Export
-// export default {
-//   name: "autotyping",
-//   alias: ["autotype", "fake", "typingsim", "typingtoggle", "atype", "typingmode", "typing"],
-//   desc: "Toggle auto fake typing when someone messages you 🕐",
-//   category: "Fun",
-//   usage: ".autotyping [on/off/duration/reply/status]",
-  
-//   async execute(sock, m, args) {
-//     try {
-//       const targetJid = m.key.remoteJid;
-      
-//       // Initialize on first command use (alternative method)
-//       if (!autoTypingConfig.isHooked) {
-//         autoTypingConfig.botSock = sock;
-//         setupMessageInterceptor(sock);
-//         autoTypingConfig.isHooked = true;
-//         console.log('🤖 Auto-typing system initialized!');
-//       }
-      
-//       if (args.length === 0) {
-//         // Show status
-//         const status = AutoTypingManager.status();
-//         const statusText = status.enabled ? "✅ *ENABLED*" : "❌ *DISABLED*";
-//         const activeSessions = status.activeSessions > 0 ? `\n• Active sessions: ${status.activeSessions}` : '';
-//         const hookStatus = status.isHooked ? '✅' : '❌';
-        
-//         await sock.sendMessage(targetJid, {
-//           text: `🤖 *Auto-Typing Manager*
-
-// ${statusText}
-
-// 📊 *Status:*
-// • Auto-Typing: ${status.enabled ? 'ON 🟢' : 'OFF 🔴'}
-// • Duration: ${status.duration} seconds
-
-// 📝 *Commands:*
-// • \`.autotyping on\` 
-// • \`.autotyping off\` 
-// • \`.autotyping [1-99]\` 
-// `
-//         }, { quoted: m });
-//         return;
-//       }
-      
-//       const arg = args[0].toLowerCase();
-      
-//       // Show status
-//       if (arg === 'status' || arg === 'info') {
-//         const status = AutoTypingManager.status();
-//         const statusText = status.enabled ? "✅ *ENABLED*" : "❌ *DISABLED*";
-//         const activeSessions = status.activeSessions > 0 ? `\n• Active sessions: ${status.activeSessions}` : '';
-        
-//         await sock.sendMessage(targetJid, {
-//           text: `🤖 *Auto-Typing Status*\n\n${statusText}\n\n📊 *Settings:*\n• Auto-Typing: ${status.enabled ? 'ON 🟢' : 'OFF 🔴'}\n• Duration: ${status.duration} seconds\n• Auto-Reply: ${status.autoReply ? 'ON 🟢' : 'OFF 🔴'}${activeSessions}`
-//         }, { quoted: m });
-//         return;
-//       }
-      
-//       // Toggle on/off
-//       if (arg === 'on' || arg === 'enable' || arg === 'start') {
-//         const enabled = AutoTypingManager.toggle();
-//         await sock.sendMessage(targetJid, {
-//           text: `✅ *Auto-Typing ${enabled ? 'ENABLED' : 'DISABLED'}*\n\n${enabled ? 'I will now automatically show typing when someone messages you! ✨' : 'Auto-typing has been turned off.'}\n\n⚙️ *Current Settings:*\n• Duration: ${AutoTypingManager.status().duration}s\n• Auto-Reply: ${AutoTypingManager.status().autoReply ? 'ON' : 'OFF'}`
-//         }, { quoted: m });
-//         return;
-//       }
-      
-//       if (arg === 'off' || arg === 'disable' || arg === 'stop') {
-//         const enabled = AutoTypingManager.toggle();
-//         await sock.sendMessage(targetJid, {
-//           text: `✅ *Auto-Typing ${enabled ? 'ENABLED' : 'DISABLED'}*\n\n${enabled ? 'Auto-typing has been turned on! ✨' : 'I will no longer auto-type when messaged.'}`
-//         }, { quoted: m });
-//         return;
-//       }
-      
-//       // Toggle auto-reply
-//       if (arg === 'reply' || arg === 'autoreply') {
-//         const autoReply = AutoTypingManager.toggleAutoReply();
-//         await sock.sendMessage(targetJid, {
-//           text: `✅ *Auto-Reply ${autoReply ? 'ENABLED' : 'DISABLED'}*\n\nI will ${autoReply ? 'now send' : 'no longer send'} a completion message after auto-typing.`
-//         }, { quoted: m });
-//         return;
-//       }
-      
-//       // Set duration
-//       const duration = parseInt(arg);
-//       if (!isNaN(duration) && duration >= 1 && duration <= 60) {
-//         const success = AutoTypingManager.setDuration(duration);
-//         if (success) {
-//           await sock.sendMessage(targetJid, {
-//             text: `✅ *Duration Updated*\n\nAuto-typing duration set to ${duration} seconds.\n\n${AutoTypingManager.status().enabled ? '⚡ Auto-typing is currently ACTIVE' : '💤 Auto-typing is INACTIVE (use `.autotyping on` to activate)'}`
-//           }, { quoted: m });
-//         } else {
-//           await sock.sendMessage(targetJid, {
-//             text: `❌ *Invalid Duration*\n\nPlease use a number between 1 and 60 seconds.`
-//           }, { quoted: m });
-//         }
-//         return;
-//       }
-      
-//       // Manual typing command
-//       if (!isNaN(duration) && duration >= 1 && duration <= 300) {
-//         // Send initial message
-//         await sock.sendMessage(targetJid, {
-//           text: `🤖 *Manual Typing Simulation*\n\nI'll show 'typing...' for ${duration} seconds!`
-//         }, { quoted: m });
-        
-//         // Do manual typing
-//         await AutoTypingManager.manualTyping(sock, targetJid, duration, m);
-//         return;
-//       }
-      
-//       // If no valid command, show help
-//       await sock.sendMessage(targetJid, {
-//         text: `❓ *Invalid Command*\n\nUse:\n• \`.autotyping on\` - Enable auto-typing\n• \`.autotyping off\` - Disable auto-typing\n• \`.autotyping 15\` - Set duration to 15s\n• \`.autotyping reply\` - Toggle auto-reply\n• \`.autotyping\` - Show status\n• \`.autotyping 10\` - Manual typing for 10s`
-//       }, { quoted: m });
-      
-//     } catch (err) {
-//       console.error("AutoTyping command error:", err);
-//       await sock.sendMessage(m.key.remoteJid, {
-//         text: `❌ AutoTyping command failed: ${err.message}`
-//       }, { quoted: m });
-//     }
-//   }
-// };
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 // commands/owner/autotyping.js
 
 // AutoTyping Manager (State Management)
@@ -772,7 +5,7 @@ const autoTypingConfig = {
   enabled: false,
   duration: 10, // seconds
   autoReply: false, // Disabled by default to avoid spam
-  activeTypers: new Map(), // chatJid -> {intervalId, userCount}
+  activeTypers: new Map(), // chatJid -> {intervalId, timeoutId, userCount, startTime, lastMessageTime}
   botSock: null,
   isHooked: false,
   ownerOnly: true, // Default to owner-only mode
@@ -829,11 +62,26 @@ class AutoTypingManager {
       
       if (!userJid || !chatJid) return;
       
+      const now = Date.now();
+      
       // Check if chat already has active typing
       if (autoTypingConfig.activeTypers.has(chatJid)) {
-        // Increment user count for this chat
         const typerData = autoTypingConfig.activeTypers.get(chatJid);
+        
+        // Update last message time and user count
+        typerData.lastMessageTime = now;
         typerData.userCount++;
+        
+        // Clear the existing timeout
+        if (typerData.timeoutId) {
+          clearTimeout(typerData.timeoutId);
+        }
+        
+        // Set a new timeout that extends from NOW
+        typerData.timeoutId = setTimeout(async () => {
+          await this.stopTypingInChat(chatJid, sock);
+        }, autoTypingConfig.duration * 1000);
+        
         autoTypingConfig.activeTypers.set(chatJid, typerData);
         return;
       }
@@ -857,46 +105,56 @@ class AutoTypingManager {
       // Keep refreshing the typing indicator every 2 seconds
       const typingInterval = setInterval(keepTypingAlive, 2000);
       
+      // Set timeout to stop typing
+      const timeoutId = setTimeout(async () => {
+        isTyping = false;
+        await this.stopTypingInChat(chatJid, sock);
+      }, autoTypingConfig.duration * 1000);
+      
       // Store typing data for this chat
       autoTypingConfig.activeTypers.set(chatJid, {
         intervalId: typingInterval,
+        timeoutId: timeoutId,
         userCount: 1,
-        startTime: Date.now()
+        startTime: now,
+        lastMessageTime: now,
+        isTyping: true
       });
-      
-      // Stop after specified duration
-      setTimeout(async () => {
-        isTyping = false;
-        
-        // Clean up
-        if (autoTypingConfig.activeTypers.has(chatJid)) {
-          const typerData = autoTypingConfig.activeTypers.get(chatJid);
-          clearInterval(typerData.intervalId);
-          autoTypingConfig.activeTypers.delete(chatJid);
-          
-          // Stop typing indicator
-          try {
-            await sock.sendPresenceUpdate('paused', chatJid);
-          } catch (err) {
-            // Ignore stop errors
-          }
-          
-          // Send auto-reply if enabled
-          if (autoTypingConfig.autoReply && !m.key.fromMe && autoTypingConfig.enabled) {
-            try {
-              await sock.sendMessage(chatJid, {
-                text: `🤖 *Auto-Typing Complete*\n\nI was typing for ${autoTypingConfig.duration} seconds in response to your message!`
-              });
-            } catch (err) {
-              console.error("Failed to send auto-reply:", err);
-            }
-          }
-        }
-        
-      }, autoTypingConfig.duration * 1000);
       
     } catch (err) {
       console.error("Auto-typing handler error:", err);
+    }
+  }
+
+  static async stopTypingInChat(chatJid, sock) {
+    if (autoTypingConfig.activeTypers.has(chatJid)) {
+      const typerData = autoTypingConfig.activeTypers.get(chatJid);
+      
+      // Clear interval and timeout
+      clearInterval(typerData.intervalId);
+      if (typerData.timeoutId) {
+        clearTimeout(typerData.timeoutId);
+      }
+      
+      autoTypingConfig.activeTypers.delete(chatJid);
+      
+      // Stop typing indicator
+      try {
+        await sock.sendPresenceUpdate('paused', chatJid);
+      } catch (err) {
+        // Ignore stop errors
+      }
+      
+      // Send auto-reply if enabled
+      if (autoTypingConfig.autoReply && autoTypingConfig.enabled) {
+        try {
+          await sock.sendMessage(chatJid, {
+            text: `🤖 *Auto-Typing Complete*\n\nI was typing for ${autoTypingConfig.duration} seconds in response to your messages!`
+          });
+        } catch (err) {
+          console.error("Failed to send auto-reply:", err);
+        }
+      }
     }
   }
 
@@ -996,6 +254,9 @@ class AutoTypingManager {
   static clearAllTypers() {
     autoTypingConfig.activeTypers.forEach((typerData) => {
       clearInterval(typerData.intervalId);
+      if (typerData.timeoutId) {
+        clearTimeout(typerData.timeoutId);
+      }
     });
     autoTypingConfig.activeTypers.clear();
   }
@@ -1024,37 +285,31 @@ class AutoTypingManager {
       // Keep refreshing the typing indicator every 2 seconds
       const typingInterval = setInterval(keepTypingAlive, 2000);
       
+      // Set timeout to stop typing
+      const timeoutId = setTimeout(async () => {
+        isTyping = false;
+        clearInterval(typingInterval);
+        
+        // Stop typing indicator
+        await sock.sendPresenceUpdate('paused', chatJid);
+        
+        // Send completion message
+        if (quotedMsg) {
+          await sock.sendMessage(chatJid, {
+            text: `✅ *Typing simulation complete!*\n\nTyped for ${duration} seconds!`
+          }, { quoted: quotedMsg });
+        }
+      }, duration * 1000);
+      
       // Store this manual typing session
       const sessionKey = `manual_${chatJid}_${Date.now()}`;
       autoTypingConfig.activeTypers.set(sessionKey, {
         intervalId: typingInterval,
+        timeoutId: timeoutId,
         userCount: 1,
         startTime: Date.now(),
+        lastMessageTime: Date.now(),
         isManual: true
-      });
-      
-      // Stop after specified duration
-      return new Promise((resolve) => {
-        setTimeout(async () => {
-          isTyping = false;
-          
-          if (autoTypingConfig.activeTypers.has(sessionKey)) {
-            clearInterval(autoTypingConfig.activeTypers.get(sessionKey).intervalId);
-            autoTypingConfig.activeTypers.delete(sessionKey);
-            
-            // Stop typing indicator
-            await sock.sendPresenceUpdate('paused', chatJid);
-            
-            // Send completion message
-            if (quotedMsg) {
-              await sock.sendMessage(chatJid, {
-                text: `✅ *Typing simulation complete!*\n\nTyped for ${duration} seconds!`
-              }, { quoted: quotedMsg });
-            }
-          }
-          
-          resolve();
-        }, duration * 1000);
       });
       
     } catch (err) {
@@ -1094,22 +349,6 @@ export default {
         let errorMsg = `❌ *Owner Only Command!*\n\n`;
         errorMsg += `Only the bot owner can use this command.\n\n`;
         
-        // if (jidManager) {
-        //   const cleaned = jidManager.cleanJid(senderJid);
-        //   const ownerInfo = jidManager.getOwnerInfo();
-          
-        //   errorMsg += `🔍 *Debug Info:*\n`;
-        //   errorMsg += `├─ Your JID: ${cleaned.cleanJid}\n`;
-        //   errorMsg += `├─ Your Number: ${cleaned.cleanNumber || 'N/A'}\n`;
-        //   errorMsg += `├─ Type: ${cleaned.isLid ? 'LID 🔗' : 'Regular 📱'}\n`;
-        //   errorMsg += `└─ Owner Number: ${ownerInfo.cleanNumber || 'Not set'}\n`;
-        // }
-        
-        // if (autoTypingConfig.ownerOnly) {
-        //   errorMsg += `\n⚙️ *Note:* Command is in owner-only mode\n`;
-        //   errorMsg += `Use \`${PREFIX}autotyping mode public\` to allow others\n`;
-        // }
-        
         return sock.sendMessage(targetJid, {
           text: errorMsg
         }, { quoted: m });
@@ -1130,7 +369,9 @@ ${modeText}
 
 📊 *Status:*
 • Auto-Typing: ${status.enabled ? 'ON 🟢' : 'OFF 🔴'}
-• Duration: ${status.duration} seconds\n
+• Duration: ${status.duration} seconds
+• Active Chats: ${status.activeSessions}
+• Total Users: ${status.totalUsersTyping}\n
 📝 *Commands:*
 • \`${PREFIX}autotyping on\` 
 • \`${PREFIX}autotyping off\` 
@@ -1193,6 +434,7 @@ ${enabled ? 'I will now automatically show **typing** when someone messages you!
 
 ⚙️ *Current Settings:*
 • Duration: ${AutoTypingManager.status().duration}s
+• Auto-Reply: ${AutoTypingManager.status().autoReply ? 'ON' : 'OFF'}
 
 `
         }, { quoted: m });
@@ -1331,20 +573,6 @@ Please use a number between 1 and 60 seconds.
 Maximum typing time is 1 minute (60 seconds).`
           }, { quoted: m });
         }
-        return;
-      }
-      
-      // Manual typing command
-      if (!isNaN(duration) && duration >= 1 && duration <= 300) {
-        // Send initial message
-        await sock.sendMessage(targetJid, {
-          text: `🤖 *Manual Typing Simulation*
-
-I'll show 'typing...' for ${duration} seconds!`
-        }, { quoted: m });
-        
-        // Do manual typing
-        await AutoTypingManager.manualTyping(sock, targetJid, duration, m);
         return;
       }
       

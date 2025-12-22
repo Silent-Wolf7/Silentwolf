@@ -1,5 +1,236 @@
 {
-  "logs": [],
-  "updatedAt": "2025-12-21T12:31:38.259Z",
-  "count": 0
+  "logs": [
+    {
+      "sender": "254794352686",
+      "fullSender": "254794352686@s.whatsapp.net",
+      "type": "image",
+      "caption": "😂😂💔",
+      "fileInfo": "🖼️ 1080x748 | 15KB",
+      "postedAt": "5:18:25 PM",
+      "detectedAt": "5:20:47 PM",
+      "timestamp": 1766413247151
+    },
+    {
+      "sender": "254732982940",
+      "fullSender": "254732982940@s.whatsapp.net",
+      "type": "video",
+      "caption": "> 🎧🎧🥶💙",
+      "fileInfo": "🎬 25s | 2760KB",
+      "postedAt": "5:21:17 PM",
+      "detectedAt": "5:21:18 PM",
+      "timestamp": 1766413278830
+    },
+    {
+      "sender": "260769771108",
+      "fullSender": "260769771108@s.whatsapp.net",
+      "type": "video",
+      "caption": "🔐🎧",
+      "fileInfo": "🎬 18s | 2101KB",
+      "postedAt": "5:21:30 PM",
+      "detectedAt": "5:21:50 PM",
+      "timestamp": 1766413310531
+    },
+    {
+      "sender": "254768188297",
+      "fullSender": "254768188297@s.whatsapp.net",
+      "type": "video",
+      "caption": "😂💔",
+      "fileInfo": "🎬 23s | 2816KB",
+      "postedAt": "5:21:55 PM",
+      "detectedAt": "5:21:55 PM",
+      "timestamp": 1766413315765
+    },
+    {
+      "sender": "447984857447",
+      "fullSender": "447984857447@s.whatsapp.net",
+      "type": "video",
+      "caption": "In love with Jamaican music ❤️😝",
+      "fileInfo": "🎬 12s | 2400KB",
+      "postedAt": "5:25:33 PM",
+      "detectedAt": "5:25:58 PM",
+      "timestamp": 1766413558962
+    },
+    {
+      "sender": "2348155931801",
+      "fullSender": "2348155931801@s.whatsapp.net",
+      "type": "video",
+      "caption": "Party don start for Ascension ooo na you dey wait for 25th",
+      "fileInfo": "🎬 15s | 1552KB",
+      "postedAt": "5:25:54 PM",
+      "detectedAt": "5:27:12 PM",
+      "timestamp": 1766413632040
+    },
+    {
+      "sender": "447984857447",
+      "fullSender": "447984857447@s.whatsapp.net",
+      "type": "video",
+      "caption": "In love with Jamaican music ❤️😝",
+      "fileInfo": "🎬 12s | 2400KB",
+      "postedAt": "5:25:59 PM",
+      "detectedAt": "5:27:12 PM",
+      "timestamp": 1766413632054
+    },
+    {
+      "sender": "254768188297",
+      "fullSender": "254768188297@s.whatsapp.net",
+      "type": "video",
+      "caption": "😂😂",
+      "fileInfo": "🎬 30s | 2641KB",
+      "postedAt": "5:26:05 PM",
+      "detectedAt": "5:27:18 PM",
+      "timestamp": 1766413638041
+    },
+    {
+      "sender": "2348155931801",
+      "fullSender": "2348155931801@s.whatsapp.net",
+      "type": "video",
+      "caption": "Party don start for Ascension ooo na you dey wait for 25th",
+      "fileInfo": "🎬 15s | 1552KB",
+      "postedAt": "5:26:29 PM",
+      "detectedAt": "5:27:30 PM",
+      "timestamp": 1766413650902
+    },
+    {
+      "sender": "254733961184",
+      "fullSender": "254733961184@s.whatsapp.net",
+      "type": "unknown",
+      "caption": "",
+      "fileInfo": "",
+      "postedAt": "5:28:02 PM",
+      "detectedAt": "5:28:11 PM",
+      "timestamp": 1766413691260
+    },
+    {
+      "sender": "254733961184",
+      "fullSender": "254733961184@s.whatsapp.net",
+      "type": "unknown",
+      "caption": "",
+      "fileInfo": "",
+      "postedAt": "5:28:03 PM",
+      "detectedAt": "5:28:11 PM",
+      "timestamp": 1766413691270
+    },
+    {
+      "sender": "254733961184",
+      "fullSender": "254733961184@s.whatsapp.net",
+      "type": "unknown",
+      "caption": "",
+      "fileInfo": "",
+      "postedAt": "5:28:03 PM",
+      "detectedAt": "5:28:11 PM",
+      "timestamp": 1766413691278
+    },
+    {
+      "sender": "254733961184",
+      "fullSender": "254733961184@s.whatsapp.net",
+      "type": "unknown",
+      "caption": "",
+      "fileInfo": "",
+      "postedAt": "5:28:03 PM",
+      "detectedAt": "5:28:12 PM",
+      "timestamp": 1766413692286
+    },
+    {
+      "sender": "254733961184",
+      "fullSender": "254733961184@s.whatsapp.net",
+      "type": "unknown",
+      "caption": "",
+      "fileInfo": "",
+      "postedAt": "5:28:04 PM",
+      "detectedAt": "5:28:12 PM",
+      "timestamp": 1766413692303
+    },
+    {
+      "sender": "254769901428",
+      "fullSender": "254769901428@s.whatsapp.net",
+      "type": "image",
+      "caption": "",
+      "fileInfo": "🖼️ 720x1280 | 18KB",
+      "postedAt": "5:29:20 PM",
+      "detectedAt": "5:29:21 PM",
+      "timestamp": 1766413761767
+    },
+    {
+      "sender": "254769901428",
+      "fullSender": "254769901428@s.whatsapp.net",
+      "type": "image",
+      "caption": "",
+      "fileInfo": "🖼️ 1080x500 | 9KB",
+      "postedAt": "5:29:26 PM",
+      "detectedAt": "5:29:27 PM",
+      "timestamp": 1766413767648
+    },
+    {
+      "sender": "254713099334",
+      "fullSender": "254713099334@s.whatsapp.net",
+      "type": "image",
+      "caption": "Istanbul 2 modern tv stand with led light\n\nKSh 4,521",
+      "fileInfo": "🖼️ 500x500 | 15KB",
+      "postedAt": "5:31:30 PM",
+      "detectedAt": "5:31:31 PM",
+      "timestamp": 1766413891290
+    },
+    {
+      "sender": "254703397679",
+      "fullSender": "254703397679@s.whatsapp.net",
+      "type": "text",
+      "caption": ".",
+      "fileInfo": "",
+      "postedAt": "5:46:26 PM",
+      "detectedAt": "5:46:26 PM",
+      "timestamp": 1766414786757
+    },
+    {
+      "sender": "260968807818",
+      "fullSender": "260968807818@s.whatsapp.net",
+      "type": "video",
+      "caption": "❤️",
+      "fileInfo": "🎬 15s | 302KB",
+      "postedAt": "5:54:59 PM",
+      "detectedAt": "5:55:03 PM",
+      "timestamp": 1766415303113
+    },
+    {
+      "sender": "254797373671",
+      "fullSender": "254797373671@s.whatsapp.net",
+      "type": "image",
+      "caption": "Christmas offer 🫴 this week only",
+      "fileInfo": "🖼️ 540x1200 | 48KB",
+      "postedAt": "5:55:29 PM",
+      "detectedAt": "5:56:05 PM",
+      "timestamp": 1766415365105
+    },
+    {
+      "sender": "254797373671",
+      "fullSender": "254797373671@s.whatsapp.net",
+      "type": "image",
+      "caption": "Christmas offer 🫴 this week only",
+      "fileInfo": "🖼️ 540x1200 | 48KB",
+      "postedAt": "5:56:05 PM",
+      "detectedAt": "5:56:29 PM",
+      "timestamp": 1766415389388
+    },
+    {
+      "sender": "254797373671",
+      "fullSender": "254797373671@s.whatsapp.net",
+      "type": "video",
+      "caption": "The power of praying 5x a day 🦦🛫",
+      "fileInfo": "🎬 29s | 7992KB",
+      "postedAt": "5:57:13 PM",
+      "detectedAt": "5:57:42 PM",
+      "timestamp": 1766415462397
+    },
+    {
+      "sender": "260964830720",
+      "fullSender": "260964830720@s.whatsapp.net",
+      "type": "video",
+      "caption": "😘😘😘",
+      "fileInfo": "🎬 8s | 1351KB",
+      "postedAt": "5:57:49 PM",
+      "detectedAt": "5:57:51 PM",
+      "timestamp": 1766415471527
+    }
+  ],
+  "updatedAt": "2025-12-22T14:58:01.906Z",
+  "count": 23
 }

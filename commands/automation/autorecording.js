@@ -1,398 +1,10 @@
-// // commands/fun/autorecording.js
-
-// // AutoRecording Manager (State Management)
-// const autoRecordingConfig = {
-//   enabled: false,
-//   duration: 10, // seconds
-//   activeRecorders: new Map(), // userId -> intervalId
-//   botSock: null,
-//   isHooked: false
-// };
-
-// class AutoRecordingManager {
-//   static initialize(sock) {
-//     if (!autoRecordingConfig.isHooked && sock) {
-//       autoRecordingConfig.botSock = sock;
-//       this.hookIntoBot();
-//       autoRecordingConfig.isHooked = true;
-//       console.log('🎤 Auto-recording system initialized!');
-//     }
-//   }
-
-//   static hookIntoBot() {
-//     if (!autoRecordingConfig.botSock || !autoRecordingConfig.botSock.ev) {
-//       console.log('⚠️ Could not hook into bot events');
-//       return;
-//     }
-    
-//     // Add our handler alongside existing ones
-//     autoRecordingConfig.botSock.ev.on('messages.upsert', async (data) => {
-//       await this.handleIncomingMessage(data);
-//     });
-    
-//     console.log('✅ Auto-recording successfully hooked into message events');
-//   }
-
-//   static async handleIncomingMessage(data) {
-//     try {
-//       if (!data || !data.messages || data.messages.length === 0) return;
-      
-//       const m = data.messages[0];
-//       const sock = autoRecordingConfig.botSock;
-      
-//       // Skip if not enabled or if it's from the bot itself
-//       if (!m || !m.key || m.key.fromMe || !autoRecordingConfig.enabled) return;
-      
-//       // Check if it's a command (starts with prefix, usually ".")
-//       const messageText = m.message?.conversation || 
-//                          m.message?.extendedTextMessage?.text || 
-//                          m.message?.imageMessage?.caption || '';
-      
-//       // Skip if it's a command
-//       if (messageText.trim().startsWith('.')) {
-//         await new Promise(resolve => setTimeout(resolve, 100));
-//         return;
-//       }
-      
-//       const userJid = m.key.participant || m.key.remoteJid;
-//       const chatJid = m.key.remoteJid;
-      
-//       if (!userJid || !chatJid) return;
-      
-//       // Check if user already has active recording
-//       if (autoRecordingConfig.activeRecorders.has(userJid)) {
-//         return;
-//       }
-      
-//       // Start recording indicator
-//       await sock.sendPresenceUpdate('recording', chatJid);
-      
-//       let isRecording = true;
-      
-//       // Function to keep recording alive
-//       const keepRecordingAlive = async () => {
-//         if (isRecording && autoRecordingConfig.enabled) {
-//           try {
-//             await sock.sendPresenceUpdate('recording', chatJid);
-//           } catch (err) {
-//             // Ignore errors in keep-alive
-//           }
-//         }
-//       };
-      
-//       // Keep refreshing the recording indicator every 2 seconds
-//       const recordingInterval = setInterval(keepRecordingAlive, 2000);
-//       autoRecordingConfig.activeRecorders.set(userJid, recordingInterval);
-      
-//       // Stop after specified duration
-//       setTimeout(async () => {
-//         isRecording = false;
-        
-//         // Clean up
-//         if (autoRecordingConfig.activeRecorders.has(userJid)) {
-//           clearInterval(autoRecordingConfig.activeRecorders.get(userJid));
-//           autoRecordingConfig.activeRecorders.delete(userJid);
-//         }
-        
-//         // Stop recording indicator
-//         try {
-//           await sock.sendPresenceUpdate('paused', chatJid);
-//         } catch (err) {
-//           // Ignore stop errors
-//         }
-        
-//       }, autoRecordingConfig.duration * 1000);
-      
-//     } catch (err) {
-//       console.error("Auto-recording handler error:", err);
-//     }
-//   }
-
-//   static toggle() {
-//     autoRecordingConfig.enabled = !autoRecordingConfig.enabled;
-//     console.log(`Auto-recording ${autoRecordingConfig.enabled ? 'ENABLED' : 'DISABLED'}`);
-    
-//     if (!autoRecordingConfig.enabled) {
-//       this.clearAllRecorders();
-//     }
-    
-//     return autoRecordingConfig.enabled;
-//   }
-
-//   static status() {
-//     return {
-//       enabled: autoRecordingConfig.enabled,
-//       duration: autoRecordingConfig.duration,
-//       activeSessions: autoRecordingConfig.activeRecorders.size,
-//       isHooked: autoRecordingConfig.isHooked
-//     };
-//   }
-
-//   static setDuration(seconds) {
-//     if (seconds >= 1 && seconds <= 120) {
-//       autoRecordingConfig.duration = seconds;
-//       return true;
-//     }
-//     return false;
-//   }
-
-//   static clearAllRecorders() {
-//     autoRecordingConfig.activeRecorders.forEach((intervalId) => {
-//       clearInterval(intervalId);
-//     });
-//     autoRecordingConfig.activeRecorders.clear();
-//   }
-
-//   static async manualRecording(sock, chatJid, duration, quotedMsg = null) {
-//     try {
-//       // Send initial message
-//       if (quotedMsg) {
-//         await sock.sendMessage(chatJid, {
-//           text: `🎤 *Voice Recording Simulation*\n\nI'll show 'recording...' for ${duration} seconds!`
-//         }, { quoted: quotedMsg });
-//       }
-      
-//       // Start recording indicator
-//       await sock.sendPresenceUpdate('recording', chatJid);
-      
-//       let isRecording = true;
-      
-//       // Function to keep recording alive
-//       const keepRecordingAlive = async () => {
-//         if (isRecording) {
-//           await sock.sendPresenceUpdate('recording', chatJid);
-//         }
-//       };
-      
-//       // Keep refreshing the recording indicator every 2 seconds
-//       const recordingInterval = setInterval(keepRecordingAlive, 2000);
-      
-//       // Stop after specified duration
-//       return new Promise((resolve) => {
-//         setTimeout(async () => {
-//           isRecording = false;
-//           clearInterval(recordingInterval);
-          
-//           // Stop recording indicator
-//           await sock.sendPresenceUpdate('paused', chatJid);
-          
-//           // Send completion message
-//           if (quotedMsg) {
-//             await sock.sendMessage(chatJid, {
-//               text: `✅ *Recording simulation complete!*\n\nRecorded for ${duration} seconds!`
-//             }, { quoted: quotedMsg });
-//           }
-          
-//           resolve();
-//         }, duration * 1000);
-//       });
-      
-//     } catch (err) {
-//       console.error("Manual recording error:", err);
-//       throw err;
-//     }
-//   }
-// }
-
-// // Main Command Export
-// export default {
-//   name: "autorecording",
-//   alias: ["record", "recording", "voicerec", "audiorec", "rec", "recsim"],
-//   desc: "Toggle auto fake recording when someone messages you 🎤",
-//   category: "Fun",
-//   usage: ".autorecording [on/off/duration/status]",
-  
-//   async execute(sock, m, args) {
-//     try {
-//       const targetJid = m.key.remoteJid;
-      
-//       // Initialize on first command use
-//       if (!autoRecordingConfig.isHooked) {
-//         autoRecordingConfig.botSock = sock;
-//         AutoRecordingManager.hookIntoBot();
-//         autoRecordingConfig.isHooked = true;
-//         console.log('🎤 Auto-recording system initialized!');
-//       }
-      
-//       if (args.length === 0) {
-//         // Show status
-//         const status = AutoRecordingManager.status();
-//         const statusText = status.enabled ? "✅ *ENABLED*" : "❌ *DISABLED*";
-//         const activeSessions = status.activeSessions > 0 ? `\n• Active sessions: ${status.activeSessions}` : '';
-        
-//         await sock.sendMessage(targetJid, {
-//           text: `🎤 *Auto-Recording Manager*
-
-// ${statusText}
-
-// 📊 *Status:*
-// • Auto-Recording: ${status.enabled ? 'ON 🟢' : 'OFF 🔴'}
-// • Duration: ${status.duration} seconds
-// • System: ${status.isHooked ? 'Active ✅' : 'Inactive ❌'}${activeSessions}
-
-// 📝 *Commands:*
-// • \`.autorecording on\` - Enable auto-recording
-// • \`.autorecording off\` - Disable auto-recording  
-// • \`.autorecording 15\` - Set duration to 15s
-// • \`.autorecording\` - Show this status
-// • \`.autorecording 10\` - Manual recording for 10s
-// • \`.record\` - Same as above (shortcut)`
-//         }, { quoted: m });
-//         return;
-//       }
-      
-//       const arg = args[0].toLowerCase();
-      
-//       // Show status
-//       if (arg === 'status' || arg === 'info') {
-//         const status = AutoRecordingManager.status();
-//         const statusText = status.enabled ? "✅ *ENABLED*" : "❌ *DISABLED*";
-//         const activeSessions = status.activeSessions > 0 ? `\n• Active sessions: ${status.activeSessions}` : '';
-        
-//         await sock.sendMessage(targetJid, {
-//           text: `🎤 *Auto-Recording Status*
-
-// ${statusText}
-
-// 📊 *Settings:*
-// • Auto-Recording: ${status.enabled ? 'ON 🟢' : 'OFF 🔴'}
-// • Duration: ${status.duration} seconds${activeSessions}
-// • System: ${status.isHooked ? 'Active ✅' : 'Inactive ❌'}`
-//         }, { quoted: m });
-//         return;
-//       }
-      
-//       // Toggle on/off
-//       if (arg === 'on' || arg === 'enable' || arg === 'start') {
-//         const enabled = AutoRecordingManager.toggle();
-//         await sock.sendMessage(targetJid, {
-//           text: `🎤 *Auto-Recording ${enabled ? 'ENABLED' : 'DISABLED'}*
-
-// ${enabled ? 'I will now automatically show **voice recording** when someone messages you! 🎙️✨' : 'Auto-recording has been turned off.'}
-
-// ⚙️ *Current Settings:*
-// • Duration: ${AutoRecordingManager.status().duration} seconds
-// • Status: ${enabled ? 'ACTIVE 🟢' : 'INACTIVE 🔴'}`
-//         }, { quoted: m });
-//         return;
-//       }
-      
-//       if (arg === 'off' || arg === 'disable' || arg === 'stop') {
-//         const enabled = AutoRecordingManager.toggle();
-//         await sock.sendMessage(targetJid, {
-//           text: `🎤 *Auto-Recording ${enabled ? 'ENABLED' : 'DISABLED'}*
-
-// ${enabled ? 'Auto-recording has been turned on! 🎙️✨' : 'I will no longer auto-record when messaged.'}`
-//         }, { quoted: m });
-//         return;
-//       }
-      
-//       // Set duration
-//       const duration = parseInt(arg);
-//       if (!isNaN(duration) && duration >= 1 && duration <= 120) {
-//         const success = AutoRecordingManager.setDuration(duration);
-//         if (success) {
-//           await sock.sendMessage(targetJid, {
-//             text: `✅ *Duration Updated*
-
-// Recording duration set to ${duration} seconds.
-
-// ${AutoRecordingManager.status().enabled ? '🎙️ Auto-recording is currently **ACTIVE**' : '💤 Auto-recording is **INACTIVE** (use \`.autorecording on\` to activate)'}`
-//           }, { quoted: m });
-//         } else {
-//           await sock.sendMessage(targetJid, {
-//             text: `❌ *Invalid Duration*
-
-// Please use a number between 1 and 120 seconds.
-
-// Maximum recording time is 2 minutes (120 seconds).`
-//           }, { quoted: m });
-//         }
-//         return;
-//       }
-      
-//       // Manual recording command
-//       if (!isNaN(duration) && duration >= 1 && duration <= 300) {
-//         // Send initial message
-//         await sock.sendMessage(targetJid, {
-//           text: `🎤 *Manual Recording Simulation*
-
-// I'll show 'recording...' for ${duration} seconds!`
-//         }, { quoted: m });
-        
-//         // Do manual recording
-//         await AutoRecordingManager.manualRecording(sock, targetJid, duration, m);
-//         return;
-//       }
-      
-//       // If no valid command, show help
-//       await sock.sendMessage(targetJid, {
-//         text: `❓ *Invalid Command*
-
-// 🎤 *Auto-Recording Commands:*
-
-// • \`.autorecording on\` - Enable auto-recording
-// • \`.autorecording off\` - Disable auto-recording
-// • \`.autorecording 15\` - Set duration to 15s
-// • \`.autorecording\` - Show status
-// • \`.autorecording 10\` - Manual recording for 10s
-
-// *Shortcuts:*
-// • \`.record on/off\`
-// • \`.recording 15\`
-// • \`.rec 10\``
-//       }, { quoted: m });
-      
-//     } catch (err) {
-//       console.error("AutoRecording command error:", err);
-//       await sock.sendMessage(m.key.remoteJid, {
-//         text: `❌ AutoRecording command failed: ${err.message}`
-//       }, { quoted: m });
-//     }
-//   }
-// };
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 // commands/owner/autorecording.js
 
 // AutoRecording Manager (State Management)
 const autoRecordingConfig = {
   enabled: false,
   duration: 10, // seconds
-  activeRecorders: new Map(), // chatJid -> {intervalId, userCount}
+  activeRecorders: new Map(), // chatJid -> {intervalId, userCount, lastMessageTime, timeoutId}
   botSock: null,
   isHooked: false,
   ownerOnly: true, // Default to owner-only mode
@@ -438,9 +50,9 @@ class AutoRecordingManager {
                          m.message?.extendedTextMessage?.text || 
                          m.message?.imageMessage?.caption || '';
       
-      // Skip if it's a command
-      if (messageText.trim().startsWith('.')) {
-        await new Promise(resolve => setTimeout(resolve, 100));
+      // Skip if it's a command (starts with dot or other prefixes)
+      const trimmedText = messageText.trim();
+      if (trimmedText.startsWith('.') || trimmedText.startsWith('!') || trimmedText.startsWith('/')) {
         return;
       }
       
@@ -449,14 +61,39 @@ class AutoRecordingManager {
       
       if (!userJid || !chatJid) return;
       
-      // Check if chat already has active recording
+      // If chat already has active recording, reset the timer
       if (autoRecordingConfig.activeRecorders.has(chatJid)) {
-        // Increment user count for this chat
         const recorderData = autoRecordingConfig.activeRecorders.get(chatJid);
+        
+        // Clear existing timeout
+        if (recorderData.timeoutId) {
+          clearTimeout(recorderData.timeoutId);
+        }
+        
+        // Update user count and last message time
         recorderData.userCount++;
+        recorderData.lastMessageTime = Date.now();
+        
+        // Set new timeout to stop recording
+        recorderData.timeoutId = setTimeout(async () => {
+          await this.stopRecording(chatJid);
+        }, autoRecordingConfig.duration * 1000);
+        
         autoRecordingConfig.activeRecorders.set(chatJid, recorderData);
         return;
       }
+      
+      // Start new recording session
+      await this.startRecording(chatJid);
+      
+    } catch (err) {
+      console.error("Auto-recording handler error:", err);
+    }
+  }
+
+  static async startRecording(chatJid) {
+    try {
+      const sock = autoRecordingConfig.botSock;
       
       // Start recording indicator in this chat
       await sock.sendPresenceUpdate('recording', chatJid);
@@ -477,61 +114,72 @@ class AutoRecordingManager {
       // Keep refreshing the recording indicator every 2 seconds
       const recordingInterval = setInterval(keepRecordingAlive, 2000);
       
+      // Set timeout to stop recording after duration
+      const timeoutId = setTimeout(async () => {
+        await this.stopRecording(chatJid);
+      }, autoRecordingConfig.duration * 1000);
+      
       // Store recording data for this chat
       autoRecordingConfig.activeRecorders.set(chatJid, {
         intervalId: recordingInterval,
         userCount: 1,
-        startTime: Date.now()
+        startTime: Date.now(),
+        lastMessageTime: Date.now(),
+        timeoutId: timeoutId,
+        isRecording: true
       });
       
-      // Stop after specified duration
-      setTimeout(async () => {
-        isRecording = false;
-        
-        // Clean up
-        if (autoRecordingConfig.activeRecorders.has(chatJid)) {
-          const recorderData = autoRecordingConfig.activeRecorders.get(chatJid);
-          clearInterval(recorderData.intervalId);
-          autoRecordingConfig.activeRecorders.delete(chatJid);
-          
-          // Stop recording indicator
-          try {
-            await sock.sendPresenceUpdate('paused', chatJid);
-          } catch (err) {
-            // Ignore stop errors
-          }
-        }
-        
-      }, autoRecordingConfig.duration * 1000);
-      
     } catch (err) {
-      console.error("Auto-recording handler error:", err);
+      console.error("Start recording error:", err);
     }
   }
 
-  // Check if user is authorized to use the command
+  static async stopRecording(chatJid) {
+    try {
+      if (!autoRecordingConfig.activeRecorders.has(chatJid)) {
+        return;
+      }
+      
+      const recorderData = autoRecordingConfig.activeRecorders.get(chatJid);
+      const sock = autoRecordingConfig.botSock;
+      
+      // Clean up
+      clearInterval(recorderData.intervalId);
+      if (recorderData.timeoutId) {
+        clearTimeout(recorderData.timeoutId);
+      }
+      
+      autoRecordingConfig.activeRecorders.delete(chatJid);
+      
+      // Stop recording indicator
+      try {
+        await sock.sendPresenceUpdate('paused', chatJid);
+      } catch (err) {
+        // Ignore stop errors
+      }
+      
+    } catch (err) {
+      console.error("Stop recording error:", err);
+    }
+  }
+
+  // Rest of the class methods remain the same...
   static isAuthorized(msg, extra = {}) {
     const senderJid = msg.key.participant || msg.key.remoteJid;
     
-    // Check if fromMe (bot itself)
     if (msg.key.fromMe) return true;
     
-    // Check if owner only mode is enabled
     if (autoRecordingConfig.ownerOnly) {
-      // Use the owner check logic from your mode command
       if (extra.jidManager) {
         return extra.jidManager.isOwner(msg);
       }
-      // Fallback to fromMe check if jidManager not available
       return msg.key.fromMe;
     }
     
-    // If not owner-only, check allowed users
     if (autoRecordingConfig.allowedUsers.has(senderJid)) {
       return true;
     }
     
-    // Check if it's the owner using the jidManager
     if (extra.jidManager) {
       return extra.jidManager.isOwner(msg);
     }
@@ -597,8 +245,11 @@ class AutoRecordingManager {
   }
 
   static clearAllRecorders() {
-    autoRecordingConfig.activeRecorders.forEach((recorderData) => {
+    autoRecordingConfig.activeRecorders.forEach((recorderData, chatJid) => {
       clearInterval(recorderData.intervalId);
+      if (recorderData.timeoutId) {
+        clearTimeout(recorderData.timeoutId);
+      }
     });
     autoRecordingConfig.activeRecorders.clear();
   }
@@ -638,7 +289,7 @@ class AutoRecordingManager {
       
       // Stop after specified duration
       return new Promise((resolve) => {
-        setTimeout(async () => {
+        const manualTimeout = setTimeout(async () => {
           isRecording = false;
           
           if (autoRecordingConfig.activeRecorders.has(sessionKey)) {
@@ -658,6 +309,11 @@ class AutoRecordingManager {
           
           resolve();
         }, duration * 1000);
+        
+        // Store timeout ID
+        const recorderData = autoRecordingConfig.activeRecorders.get(sessionKey);
+        recorderData.timeoutId = manualTimeout;
+        autoRecordingConfig.activeRecorders.set(sessionKey, recorderData);
       });
       
     } catch (err) {
@@ -697,22 +353,6 @@ export default {
         let errorMsg = `❌ *Owner Only Command!*\n\n`;
         errorMsg += `Only the bot owner can use this command.\n\n`;
         
-        // if (jidManager) {
-        //   const cleaned = jidManager.cleanJid(senderJid);
-        //   const ownerInfo = jidManager.getOwnerInfo();
-          
-        //   errorMsg += `🔍 *Debug Info:*\n`;
-        //   errorMsg += `├─ Your JID: ${cleaned.cleanJid}\n`;
-        //   errorMsg += `├─ Your Number: ${cleaned.cleanNumber || 'N/A'}\n`;
-        //   errorMsg += `├─ Type: ${cleaned.isLid ? 'LID 🔗' : 'Regular 📱'}\n`;
-        //   errorMsg += `└─ Owner Number: ${ownerInfo.cleanNumber || 'Not set'}\n`;
-        // }
-        
-        // if (autoRecordingConfig.ownerOnly) {
-        //   errorMsg += `\n⚙️ *Note:* Command is in owner-only mode\n`;
-        //   errorMsg += `Use \`${PREFIX}autorecording mode public\` to allow others\n`;
-        // }
-        
         return sock.sendMessage(targetJid, {
           text: errorMsg
         }, { quoted: m });
@@ -734,11 +374,13 @@ ${modeText}
 📊 *Status:*
 • Auto-Recording: ${status.enabled ? 'ON 🟢' : 'OFF 🔴'}
 • Duration: ${status.duration} seconds
+• Active Chats: ${status.activeSessions}
 
 🔧 *Owner Commands:*
 • \`${PREFIX}autorecording on\`
 • \`${PREFIX}autorecording off\` 
 • \`${PREFIX}autorecording <duration>\` 
+• \`${PREFIX}autorecording status\` - Detailed info
 `
         }, { quoted: m });
         return;
@@ -773,7 +415,10 @@ ${modeText}
           autoRecordingConfig.activeRecorders.forEach((data, chatJid) => {
             const elapsed = Math.floor((Date.now() - data.startTime) / 1000);
             const remaining = Math.max(0, status.duration - elapsed);
-            statusMsg += `├─ ${chatJid.includes('@g.us') ? '👥 Group' : '👤 DM'}\n`;
+            const chatType = chatJid.includes('@g.us') ? '👥 Group' : 
+                           chatJid.startsWith('manual_') ? '🎤 Manual' : '👤 DM';
+            statusMsg += `├─ ${chatType}\n`;
+            statusMsg += `│  ├─ ID: ${chatJid}\n`;
             statusMsg += `│  ├─ Users: ${data.userCount}\n`;
             statusMsg += `│  ├─ Elapsed: ${elapsed}s\n`;
             statusMsg += `│  └─ Remaining: ${remaining}s\n`;
@@ -920,16 +565,29 @@ Maximum recording time is 2 minutes (120 seconds).`
       }
       
       // Manual recording command
-      if (!isNaN(duration) && duration >= 1 && duration <= 300) {
+      if (arg === 'manual' || arg === 'now') {
+        const manualDuration = args[1] ? parseInt(args[1]) : autoRecordingConfig.duration;
+        
+        if (isNaN(manualDuration) || manualDuration < 1 || manualDuration > 300) {
+          await sock.sendMessage(targetJid, {
+            text: `❌ *Invalid Duration*
+
+Please use a number between 1 and 300 seconds for manual recording.
+
+Usage: \`${PREFIX}autorecording manual 15\``
+          }, { quoted: m });
+          return;
+        }
+        
         // Send initial message
         await sock.sendMessage(targetJid, {
           text: `🎤 *Manual Recording Simulation*
 
-I'll show 'recording...' for ${duration} seconds!`
+I'll show 'recording...' for ${manualDuration} seconds!`
         }, { quoted: m });
         
         // Do manual recording
-        await AutoRecordingManager.manualRecording(sock, targetJid, duration, m);
+        await AutoRecordingManager.manualRecording(sock, targetJid, manualDuration, m);
         return;
       }
       
@@ -950,8 +608,8 @@ I'll show 'recording...' for ${duration} seconds!`
 • \`${PREFIX}autorecording\` - Show status
 • \`${PREFIX}autorecording status\` - Detailed status
 
-🎙️ *Manual:*
-• \`${PREFIX}autorecording 10\` - Manual recording for 10s
+🎙️ *Manual Recording:*
+• \`${PREFIX}autorecording manual 10\` - Manual recording for 10s
 
 ⚠️ *Note:* Recording can show in multiple chats simultaneously!`
       }, { quoted: m });

@@ -1,22 +1,13 @@
-
-
-
-
-
-
-
-
-
-
-// // File: ./commands/utility/antidelete.js - UPDATED WITH PUBLIC/PRIVATE MODES
+// // File: ./commands/utility/antidelete.js - FIXED VERSION
 // import fs from 'fs/promises';
 // import path from 'path';
 // import { fileURLToPath } from 'url';
-// import { downloadMediaMessage } from '@whiskeysockets/baileys';
+// import { downloadMediaMessage, proto } from '@whiskeysockets/baileys';
 
 // const __filename = fileURLToPath(import.meta.url);
 // const __dirname = path.dirname(__filename);
 // const MEDIA_STORAGE_PATH = path.join(__dirname, '../../../temp/antidelete_media');
+// const STATUS_STORAGE_PATH = path.join(__dirname, '../../../temp/antidelete_statuses');
 
 // // Owner JID configuration
 // let OWNER_JID = null;
@@ -25,7 +16,6 @@
 // // Load owner info
 // async function loadOwnerInfo() {
 //     try {
-//         // Try multiple possible locations
 //         const possiblePaths = [
 //             './owner.json',
 //             '../owner.json',
@@ -62,14 +52,13 @@
 // export default {
 //     name: 'antidelete',
 //     alias: ['undelete', 'antidel', 'ad'],
-//     description: 'Capture deleted messages with public/private modes',
+//     description: 'Capture deleted messages and statuses with public/private modes',
 //     category: 'utility',
     
 //     async execute(sock, msg, args, PREFIX, metadata = {}) {
 //         const chatId = msg.key.remoteJid;
-//         const isGroup = chatId.endsWith('@g.us');
         
-//         console.log('🚫 Antidelete System - Public/Private Modes');
+//         console.log('🚫 Antidelete System - Now with Status Support');
         
 //         // Extract jidManager if available
 //         const jidManager = metadata.jidManager || {
@@ -100,8 +89,9 @@
 //         if (!global.antideleteTerminal) {
 //             global.antideleteTerminal = {
 //                 active: false,
-//                 mode: 'public', // 'public' or 'private'
+//                 mode: 'public',
 //                 messageCache: new Map(),
+//                 statusCache: new Map(),
 //                 listenerSetup: false,
 //                 notifyInChat: true,
 //                 stats: {
@@ -112,23 +102,36 @@
 //                     mediaDownloaded: 0,
 //                     mediaSent: 0,
 //                     sentToDm: 0,
-//                     sentToChat: 0
+//                     sentToChat: 0,
+//                     statusesDetected: 0,
+//                     statusesDeleted: 0,
+//                     statusesRetrieved: 0,
+//                     statusesViewed: 0,
+//                     statusesDownloaded: 0
 //                 },
 //                 seenMessages: new Map(),
+//                 seenStatuses: new Map(),
 //                 processedDeletions: new Set(),
+//                 processedStatusDeletions: new Set(),
 //                 mediaStorage: new Map(),
+//                 statusStorage: new Map(),
 //                 cleanupInterval: null,
 //                 lastCleanup: Date.now(),
-//                 // Track DMs sent to owner
 //                 ownerDmLog: new Map(),
-//                 // Configuration
+//                 statusDmLog: new Map(),
 //                 config: {
 //                     autoCleanup: true,
 //                     maxStorageHours: 24,
 //                     notifyOnModeChange: true,
 //                     stealthMode: false,
-//                     logToTerminal: true
-//                 }
+//                     logToTerminal: true,
+//                     captureStatuses: true,
+//                     statusPrivacy: 'owner',
+//                     autoViewStatuses: true,
+//                     statusViewDelay: 2000
+//                 },
+//                 statusViewQueue: new Map(),
+//                 statusViewInterval: null
 //             };
 //         }
         
@@ -140,20 +143,13 @@
 //         // Check if sender is owner
 //         function isOwner(msg) {
 //             if (!msg) return false;
-            
-//             // fromMe is always owner
 //             if (msg.key.fromMe) return true;
             
 //             const senderJid = msg.key.participant || msg.key.remoteJid;
 //             const cleaned = jidManager.cleanJid(senderJid);
             
-//             // Check against stored owner
 //             if (OWNER_NUMBER && cleaned.cleanNumber === OWNER_NUMBER) return true;
-            
-//             // Check using jidManager
-//             if (jidManager.isOwner) {
-//                 return jidManager.isOwner(msg);
-//             }
+//             if (jidManager.isOwner) return jidManager.isOwner(msg);
             
 //             return false;
 //         }
@@ -181,7 +177,8 @@
 //                 'media': '📷',
 //                 'deletion': '🗑️',
 //                 'dm': '📨',
-//                 'mode': '🔄'
+//                 'mode': '🔄',
+//                 'status': '📱'
 //             };
             
 //             const prefix = prefixes[type] || '📝';
@@ -192,6 +189,7 @@
 //         async function ensureMediaDir() {
 //             try {
 //                 await fs.mkdir(MEDIA_STORAGE_PATH, { recursive: true });
+//                 await fs.mkdir(STATUS_STORAGE_PATH, { recursive: true });
 //                 return true;
 //             } catch (error) {
 //                 cleanLog(`Directory error: ${error.message}`, 'error');
@@ -199,18 +197,106 @@
 //             }
 //         }
         
-//         // ====== MEDIA HANDLING FUNCTIONS ======
+//         // ====== MESSAGE STORAGE FUNCTIONS ======
         
-//         // Download media properly
-//         async function downloadMediaProperly(message) {
+//         // Store message with media
+//         async function storeMessageWithMedia(message) {
 //             try {
-//                 const msgId = message.key?.id;
-//                 if (!msgId) return null;
+//                 if (!tracker.active) return;
                 
-//                 cleanLog(`Downloading media for: ${msgId.substring(0, 8)}...`, 'media');
+//                 const msgId = message.key?.id;
+//                 if (!msgId) return;
+                
+//                 // Skip if already cached
+//                 if (tracker.messageCache.has(msgId)) return;
+                
+//                 const chatJid = message.key.remoteJid;
+//                 const senderJid = message.key.participant || chatJid;
+//                 const pushName = message.pushName || 'Unknown';
+//                 const timestamp = message.messageTimestamp * 1000 || Date.now();
+                
+//                 // Extract message content
+//                 const msgContent = message.message;
+//                 let text = '';
+//                 let type = 'text';
+//                 let hasMedia = false;
+//                 let mimetype = '';
+//                 let caption = '';
+                
+//                 if (msgContent?.conversation) {
+//                     text = msgContent.conversation;
+//                 } else if (msgContent?.extendedTextMessage?.text) {
+//                     text = msgContent.extendedTextMessage.text;
+//                 } else if (msgContent?.imageMessage) {
+//                     type = 'image';
+//                     text = msgContent.imageMessage.caption || '';
+//                     mimetype = msgContent.imageMessage.mimetype || 'image/jpeg';
+//                     hasMedia = true;
+//                     caption = text;
+//                 } else if (msgContent?.videoMessage) {
+//                     type = 'video';
+//                     text = msgContent.videoMessage.caption || '';
+//                     mimetype = msgContent.videoMessage.mimetype || 'video/mp4';
+//                     hasMedia = true;
+//                     caption = text;
+//                 } else if (msgContent?.audioMessage) {
+//                     type = 'audio';
+//                     mimetype = msgContent.audioMessage.mimetype || 'audio/mpeg';
+//                     hasMedia = true;
+//                 } else if (msgContent?.documentMessage) {
+//                     type = 'document';
+//                     text = msgContent.documentMessage.fileName || 'Document';
+//                     mimetype = msgContent.documentMessage.mimetype || 'application/octet-stream';
+//                     hasMedia = true;
+//                 } else if (msgContent?.stickerMessage) {
+//                     type = 'sticker';
+//                     mimetype = msgContent.stickerMessage.mimetype || 'image/webp';
+//                     hasMedia = true;
+//                 }
+                
+//                 // Store message in cache
+//                 const messageData = {
+//                     id: msgId,
+//                     chatJid: chatJid,
+//                     senderJid: senderJid,
+//                     pushName: pushName,
+//                     timestamp: timestamp,
+//                     type: type,
+//                     text: text,
+//                     caption: caption,
+//                     hasMedia: hasMedia,
+//                     mimetype: mimetype,
+//                     rawMessage: message
+//                 };
+                
+//                 tracker.messageCache.set(msgId, messageData);
+                
+//                 // Download media if present
+//                 if (hasMedia) {
+//                     setTimeout(async () => {
+//                         try {
+//                             await downloadAndSaveMedia(msgId, messageData, message);
+//                         } catch (error) {
+//                             cleanLog(`Media download failed: ${error.message}`, 'error');
+//                         }
+//                     }, 500);
+//                 }
+                
+//                 return messageData;
+                
+//             } catch (error) {
+//                 cleanLog(`Message storage error: ${error.message}`, 'error');
+//                 return null;
+//             }
+//         }
+        
+//         // Download and save media
+//         async function downloadAndSaveMedia(msgId, messageData, originalMessage) {
+//             try {
+//                 if (!messageData.hasMedia) return false;
                 
 //                 const buffer = await downloadMediaMessage(
-//                     message,
+//                     originalMessage,
 //                     'buffer',
 //                     {},
 //                     {
@@ -220,186 +306,162 @@
 //                 );
                 
 //                 if (!buffer || buffer.length === 0) {
-//                     cleanLog('Empty buffer returned', 'warning');
-//                     return null;
+//                     cleanLog('Empty buffer for media', 'warning');
+//                     return false;
 //                 }
                 
-//                 cleanLog(`Downloaded: ${buffer.length} bytes`, 'success');
-//                 return buffer;
-                
-//             } catch (error) {
-//                 cleanLog(`Download error: ${error.message}`, 'error');
-//                 return null;
-//             }
-//         }
-        
-//         // Save media to file
-//         async function saveMediaFile(messageId, buffer, type, mimetype, originalMessage) {
-//             try {
+//                 // Save to file
 //                 await ensureMediaDir();
-                
-//                 // Generate filename
 //                 const timestamp = Date.now();
-//                 let extension = getFileExtension(type, mimetype);
-//                 const filename = `antidelete_${messageId.substring(0, 8)}_${timestamp}${extension}`;
+//                 let extension = '.bin';
+                
+//                 if (messageData.type === 'image') extension = '.jpg';
+//                 else if (messageData.type === 'video') extension = '.mp4';
+//                 else if (messageData.type === 'audio') extension = '.mp3';
+//                 else if (messageData.type === 'sticker') extension = '.webp';
+//                 else if (messageData.mimetype.includes('pdf')) extension = '.pdf';
+//                 else if (messageData.mimetype.includes('document')) extension = '.bin';
+                
+//                 const filename = `${messageData.type}_${timestamp}${extension}`;
 //                 const filePath = path.join(MEDIA_STORAGE_PATH, filename);
                 
-//                 // Write file
 //                 await fs.writeFile(filePath, buffer);
                 
-//                 // Store metadata
-//                 tracker.mediaStorage.set(messageId, {
+//                 // Store in media storage
+//                 tracker.mediaStorage.set(msgId, {
 //                     filePath: filePath,
 //                     buffer: buffer,
-//                     type: type,
-//                     mimetype: mimetype || getMimeType(type),
+//                     type: messageData.type,
+//                     mimetype: messageData.mimetype,
 //                     filename: filename,
 //                     size: buffer.length,
-//                     timestamp: timestamp,
-//                     originalMessage: originalMessage
+//                     timestamp: timestamp
 //                 });
                 
-//                 cleanLog(`Saved: ${filename} (${Math.round(buffer.length/1024)}KB)`, 'media');
 //                 tracker.stats.mediaDownloaded++;
+//                 cleanLog(`Media saved: ${filename} (${Math.round(buffer.length/1024)}KB)`, 'success');
 //                 return true;
                 
 //             } catch (error) {
-//                 cleanLog(`Save error: ${error.message}`, 'error');
+//                 cleanLog(`Media download error: ${error.message}`, 'error');
 //                 return false;
 //             }
 //         }
         
-//         // Get file extension
-//         function getFileExtension(type, mimetype = '') {
-//             switch(type) {
-//                 case 'image':
-//                     if (mimetype.includes('png')) return '.png';
-//                     if (mimetype.includes('gif')) return '.gif';
-//                     if (mimetype.includes('webp')) return '.webp';
-//                     return '.jpg';
-//                 case 'video':
-//                     if (mimetype.includes('gif')) return '.gif';
-//                     if (mimetype.includes('webm')) return '.webm';
-//                     return '.mp4';
-//                 case 'audio':
-//                     if (mimetype.includes('ogg')) return '.ogg';
-//                     if (mimetype.includes('mp3')) return '.mp3';
-//                     return '.m4a';
-//                 case 'sticker':
-//                     return '.webp';
-//                 case 'document':
-//                     const originalExt = mimetype.split('/')[1];
-//                     return originalExt ? `.${originalExt.split(';')[0]}` : '.bin';
-//                 default:
-//                     return '.dat';
-//             }
-//         }
+//         // ====== DELETION HANDLING ======
         
-//         // Get mime type
-//         function getMimeType(type) {
-//             switch(type) {
-//                 case 'image': return 'image/jpeg';
-//                 case 'video': return 'video/mp4';
-//                 case 'audio': return 'audio/mp4';
-//                 case 'sticker': return 'image/webp';
-//                 case 'document': return 'application/octet-stream';
-//                 default: return 'application/octet-stream';
-//             }
-//         }
-        
-//         // Send media to chat (public mode)
-//         async function sendMediaToChat(messageDetails) {
+//         // Handle deleted message
+//         async function handleDeletedMessage(messageKey) {
 //             try {
-//                 const messageId = messageDetails.id;
-//                 const mediaInfo = tracker.mediaStorage.get(messageId);
+//                 const msgId = messageKey.id;
+//                 const chatJid = messageKey.remoteJid;
                 
-//                 if (!mediaInfo) {
-//                     return sendTextNotification(messageDetails);
+//                 // Skip if already processed
+//                 if (tracker.processedDeletions.has(msgId)) return;
+//                 tracker.processedDeletions.add(msgId);
+                
+//                 cleanLog(`Deletion detected: ${msgId.substring(0, 8)}... in ${chatJid}`, 'deletion');
+//                 tracker.stats.deletionsDetected++;
+                
+//                 // Get cached message
+//                 const cachedMessage = tracker.messageCache.get(msgId);
+//                 if (!cachedMessage) {
+//                     cleanLog(`Message not found in cache: ${msgId.substring(0, 8)}...`, 'warning');
+//                     tracker.stats.falsePositives++;
+//                     return;
 //                 }
                 
-//                 const time = new Date(messageDetails.timestamp).toLocaleTimeString();
-//                 const senderName = messageDetails.pushName || messageDetails.senderShort;
+//                 // Remove from cache
+//                 tracker.messageCache.delete(msgId);
                 
-//                 let caption = `🚫 *DELETED ${messageDetails.type.toUpperCase()}*\n\n`;
-//                 caption += `👤 From: ${senderName}\n`;
-//                 caption += `📞 Number: ${messageDetails.senderShort}\n`;
-//                 caption += `🕒 Time: ${time}\n`;
-                
-//                 if (messageDetails.caption) {
-//                     caption += `💬 Caption: ${messageDetails.caption}\n`;
+//                 // Handle based on mode
+//                 if (tracker.mode === 'public') {
+//                     await sendDeletedMessageToChat(chatJid, cachedMessage);
+//                 } else if (tracker.mode === 'private') {
+//                     await sendDeletedMessageToOwnerDM(cachedMessage);
 //                 }
                 
-//                 caption += `\n🔍 *Captured by antidelete*`;
-                
-//                 // Read buffer
-//                 let buffer = mediaInfo.buffer;
-//                 if (!buffer) {
-//                     buffer = await fs.readFile(mediaInfo.filePath);
-//                 }
-                
-//                 if (!buffer || buffer.length === 0) {
-//                     return sendTextNotification(messageDetails);
-//                 }
-                
-//                 // Send based on type
-//                 switch(messageDetails.type) {
-//                     case 'image':
-//                         await sock.sendMessage(messageDetails.chat, {
-//                             image: buffer,
-//                             caption: caption,
-//                             mimetype: mediaInfo.mimetype
-//                         });
-//                         break;
-                        
-//                     case 'video':
-//                         await sock.sendMessage(messageDetails.chat, {
-//                             video: buffer,
-//                             caption: caption,
-//                             mimetype: mediaInfo.mimetype
-//                         });
-//                         break;
-                        
-//                     case 'audio':
-//                         await sock.sendMessage(messageDetails.chat, {
-//                             audio: buffer,
-//                             mimetype: mediaInfo.mimetype,
-//                             ptt: mediaInfo.mimetype?.includes('ogg')
-//                         });
-//                         break;
-                        
-//                     case 'document':
-//                         await sock.sendMessage(messageDetails.chat, {
-//                             document: buffer,
-//                             fileName: messageDetails.fileName || 'document',
-//                             caption: caption,
-//                             mimetype: mediaInfo.mimetype
-//                         });
-//                         break;
-                        
-//                     case 'sticker':
-//                         await sock.sendMessage(messageDetails.chat, {
-//                             sticker: buffer,
-//                             mimetype: mediaInfo.mimetype
-//                         });
-//                         break;
-                        
-//                     default:
-//                         return sendTextNotification(messageDetails);
-//                 }
-                
-//                 tracker.stats.mediaSent++;
-//                 tracker.stats.sentToChat++;
-//                 cleanLog(`Media sent to chat: ${messageDetails.type}`, 'success');
-//                 return true;
+//                 tracker.stats.retrievedSuccessfully++;
                 
 //             } catch (error) {
-//                 cleanLog(`Send to chat error: ${error.message}`, 'error');
-//                 return sendTextNotification(messageDetails);
+//                 cleanLog(`Deletion handling error: ${error.message}`, 'error');
 //             }
 //         }
         
-//         // Send media to owner's DM (private mode)
-//         async function sendMediaToOwnerDM(messageDetails) {
+//         // Send deleted message to chat
+//         async function sendDeletedMessageToChat(chatJid, messageData) {
+//             try {
+//                 const time = new Date(messageData.timestamp).toLocaleString();
+//                 const senderNumber = jidManager.cleanJid(messageData.senderJid).cleanNumber;
+                
+//                 let messageText = `🗑️ *DELETED MESSAGE*\n\n`;
+//                 messageText += `👤 From: ${senderNumber} (${messageData.pushName})\n`;
+//                 messageText += `🕒 Time: ${time}\n`;
+//                 messageText += `💬 Type: ${messageData.type.toUpperCase()}\n`;
+                
+//                 if (messageData.text) {
+//                     messageText += `\n📝 Content:\n${messageData.text.substring(0, 500)}`;
+//                     if (messageData.text.length > 500) messageText += '...';
+//                 }
+                
+//                 messageText += `\n\n────────────\n`;
+//                 messageText += `🔍 *Captured by antidelete system*`;
+                
+//                 // Check if we have media
+//                 const mediaInfo = tracker.mediaStorage.get(messageData.id);
+                
+//                 if (messageData.hasMedia && mediaInfo) {
+//                     let buffer = mediaInfo.buffer;
+//                     if (!buffer) {
+//                         buffer = await fs.readFile(mediaInfo.filePath);
+//                     }
+                    
+//                     if (buffer && buffer.length > 0) {
+//                         if (messageData.type === 'image') {
+//                             await sock.sendMessage(chatJid, {
+//                                 image: buffer,
+//                                 caption: messageText,
+//                                 mimetype: mediaInfo.mimetype
+//                             });
+//                         } else if (messageData.type === 'video') {
+//                             await sock.sendMessage(chatJid, {
+//                                 video: buffer,
+//                                 caption: messageText,
+//                                 mimetype: mediaInfo.mimetype
+//                             });
+//                         } else if (messageData.type === 'audio') {
+//                             await sock.sendMessage(chatJid, {
+//                                 audio: buffer,
+//                                 mimetype: mediaInfo.mimetype
+//                             });
+//                         } else if (messageData.type === 'sticker') {
+//                             await sock.sendMessage(chatJid, {
+//                                 sticker: buffer,
+//                                 mimetype: mediaInfo.mimetype
+//                             });
+//                         } else {
+//                             await sock.sendMessage(chatJid, {
+//                                 text: messageText + `\n\n📎 Media: ${messageData.type} (${Math.round(mediaInfo.size/1024)}KB)`
+//                             });
+//                         }
+//                         tracker.stats.mediaSent++;
+//                     } else {
+//                         await sock.sendMessage(chatJid, { text: messageText });
+//                     }
+//                 } else {
+//                     await sock.sendMessage(chatJid, { text: messageText });
+//                 }
+                
+//                 tracker.stats.sentToChat++;
+//                 cleanLog(`Deleted message sent to chat: ${senderNumber}`, 'success');
+                
+//             } catch (error) {
+//                 cleanLog(`Chat send error: ${error.message}`, 'error');
+//             }
+//         }
+        
+//         // Send deleted message to owner DM
+//         async function sendDeletedMessageToOwnerDM(messageData) {
 //             try {
 //                 const ownerJid = getOwnerJid();
 //                 if (!ownerJid) {
@@ -407,210 +469,531 @@
 //                     return false;
 //                 }
                 
-//                 const messageId = messageDetails.id;
-//                 const mediaInfo = tracker.mediaStorage.get(messageId);
+//                 const time = new Date(messageData.timestamp).toLocaleString();
+//                 const senderNumber = jidManager.cleanJid(messageData.senderJid).cleanNumber;
+//                 const chatNumber = jidManager.cleanJid(messageData.chatJid).cleanNumber;
                 
-//                 if (!mediaInfo) {
-//                     return sendTextToOwnerDM(messageDetails);
+//                 let messageText = `🗑️ *DELETED MESSAGE (PRIVATE)*\n\n`;
+//                 messageText += `👤 From: ${senderNumber} (${messageData.pushName})\n`;
+//                 messageText += `💬 Chat: ${chatNumber}\n`;
+//                 messageText += `🕒 Time: ${time}\n`;
+//                 messageText += `📝 Type: ${messageData.type.toUpperCase()}\n`;
+                
+//                 if (messageData.text) {
+//                     messageText += `\n📋 Content:\n${messageData.text.substring(0, 500)}`;
+//                     if (messageData.text.length > 500) messageText += '...';
 //                 }
                 
-//                 const time = new Date(messageDetails.timestamp).toLocaleString();
-//                 const senderName = messageDetails.pushName || messageDetails.senderShort;
-//                 const chatName = messageDetails.chatName || 'Unknown Chat';
+//                 messageText += `\n\n────────────\n`;
+//                 messageText += `🔐 *Private mode - Owner only*`;
                 
-//                 // Read buffer
-//                 let buffer = mediaInfo.buffer;
-//                 if (!buffer) {
-//                     buffer = await fs.readFile(mediaInfo.filePath);
+//                 // Check if we have media
+//                 const mediaInfo = tracker.mediaStorage.get(messageData.id);
+                
+//                 if (messageData.hasMedia && mediaInfo) {
+//                     let buffer = mediaInfo.buffer;
+//                     if (!buffer) {
+//                         buffer = await fs.readFile(mediaInfo.filePath);
+//                     }
+                    
+//                     if (buffer && buffer.length > 0) {
+//                         if (messageData.type === 'image') {
+//                             await sock.sendMessage(ownerJid, {
+//                                 image: buffer,
+//                                 caption: messageText,
+//                                 mimetype: mediaInfo.mimetype
+//                             });
+//                         } else if (messageData.type === 'video') {
+//                             await sock.sendMessage(ownerJid, {
+//                                 video: buffer,
+//                                 caption: messageText,
+//                                 mimetype: mediaInfo.mimetype
+//                             });
+//                         } else if (messageData.type === 'audio') {
+//                             await sock.sendMessage(ownerJid, {
+//                                 audio: buffer,
+//                                 mimetype: mediaInfo.mimetype
+//                             });
+//                         } else if (messageData.type === 'sticker') {
+//                             await sock.sendMessage(ownerJid, {
+//                                 sticker: buffer,
+//                                 mimetype: mediaInfo.mimetype
+//                             });
+//                         } else {
+//                             await sock.sendMessage(ownerJid, {
+//                                 text: messageText + `\n\n📎 Media: ${messageData.type} (${Math.round(mediaInfo.size/1024)}KB)`
+//                             });
+//                         }
+//                         tracker.stats.mediaSent++;
+//                     } else {
+//                         await sock.sendMessage(ownerJid, { text: messageText });
+//                     }
+//                 } else {
+//                     await sock.sendMessage(ownerJid, { text: messageText });
 //                 }
+                
+//                 tracker.ownerDmLog.set(messageData.id, {
+//                     timestamp: Date.now(),
+//                     sender: senderNumber,
+//                     chat: chatNumber,
+//                     type: messageData.type,
+//                     hasMedia: messageData.hasMedia
+//                 });
+                
+//                 tracker.stats.sentToDm++;
+//                 cleanLog(`Deleted message sent to owner DM: ${senderNumber} → ${chatNumber}`, 'dm');
+//                 return true;
+                
+//             } catch (error) {
+//                 cleanLog(`DM error: ${error.message}`, 'error');
+//                 return false;
+//             }
+//         }
+        
+//         // ====== STATUS VIEWING FUNCTIONS ======
+        
+//         // Fetch and view status - FIXED VERSION
+//         async function fetchAndViewStatus(statusJid) {
+//             try {
+//                 if (!tracker.config.autoViewStatuses) return;
+                
+//                 const phoneNumber = statusJid.split('@')[0];
+//                 cleanLog(`Fetching status for: ${phoneNumber}`, 'status');
+                
+//                 // Try to fetch status list
+//                 try {
+//                     // Use WAP methods to fetch status
+//                     const statusResult = await sock.fetchStatus(statusJid);
+                    
+//                     if (statusResult && statusResult.length > 0) {
+//                         cleanLog(`Found ${statusResult.length} status messages for ${phoneNumber}`, 'success');
+                        
+//                         for (const statusMsg of statusResult) {
+//                             await storeStatusFromMessage(statusJid, statusMsg);
+//                         }
+                        
+//                         // Send read receipt for each status
+//                         for (const statusMsg of statusResult) {
+//                             try {
+//                                 const receiptMsg = {
+//                                     key: {
+//                                         remoteJid: 'status@broadcast',
+//                                         fromMe: true,
+//                                         id: `status_read_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+//                                     },
+//                                     message: {
+//                                         protocolMessage: {
+//                                             type: proto.Message.ProtocolMessage.Type.READ_STATUS,
+//                                             key: {
+//                                                 remoteJid: statusJid,
+//                                                 fromMe: false,
+//                                                 id: statusMsg.key?.id || `status_${Date.now()}`
+//                                             }
+//                                         }
+//                                     }
+//                                 };
+                                
+//                                 await sock.relayMessage('status@broadcast', receiptMsg.message, {
+//                                     messageId: receiptMsg.key.id
+//                                 });
+                                
+//                                 cleanLog(`Sent status read receipt for: ${phoneNumber}`, 'status');
+//                                 tracker.stats.statusesViewed++;
+//                             } catch (readError) {
+//                                 cleanLog(`Status read error: ${readError.message}`, 'error');
+//                             }
+//                         }
+                        
+//                         return true;
+//                     } else {
+//                         cleanLog(`No status messages found for ${phoneNumber}`, 'warning');
+//                         return false;
+//                     }
+//                 } catch (queryError) {
+//                     cleanLog(`Status query error: ${queryError.message}`, 'error');
+//                     return false;
+//                 }
+                
+//             } catch (error) {
+//                 cleanLog(`Status fetch error: ${error.message}`, 'error');
+//                 return false;
+//             }
+//         }
+        
+//         // Process status view queue
+//         async function processStatusViewQueue() {
+//             try {
+//                 const now = Date.now();
+//                 const maxAge = 5 * 60 * 1000; // 5 minutes
+                
+//                 for (const [jid, data] of tracker.statusViewQueue.entries()) {
+//                     if (now - data.timestamp > maxAge) {
+//                         tracker.statusViewQueue.delete(jid);
+//                         continue;
+//                     }
+                    
+//                     // Try to fetch status after delay
+//                     if (data.attempts < 3) {
+//                         setTimeout(async () => {
+//                             try {
+//                                 await fetchAndViewStatus(jid);
+//                             } catch (error) {
+//                                 cleanLog(`Queue process error: ${error.message}`, 'error');
+//                             }
+//                         }, data.attempts * 3000);
+                        
+//                         data.attempts++;
+//                         tracker.statusViewQueue.set(jid, data);
+//                     }
+//                 }
+//             } catch (error) {
+//                 cleanLog(`Queue processing error: ${error.message}`, 'error');
+//             }
+//         }
+        
+//         // Fetch status content
+//         async function fetchStatusContent(statusJid) {
+//             try {
+//                 const phoneNumber = statusJid.split('@')[0];
+//                 cleanLog(`Attempting to fetch status content for: ${phoneNumber}`, 'status');
+                
+//                 // Try to get status messages
+//                 const statusMessages = await sock.fetchStatus(statusJid);
+                
+//                 if (statusMessages && statusMessages.length > 0) {
+//                     cleanLog(`Found ${statusMessages.length} status messages for ${phoneNumber}`, 'success');
+                    
+//                     for (const statusMsg of statusMessages) {
+//                         await storeStatusFromMessage(statusJid, statusMsg);
+//                     }
+                    
+//                     return true;
+//                 } else {
+//                     cleanLog(`No status messages found for ${phoneNumber}`, 'warning');
+//                     return false;
+//                 }
+                
+//             } catch (error) {
+//                 cleanLog(`Status content fetch error: ${error.message}`, 'error');
+//                 return false;
+//             }
+//         }
+        
+//         // Store status from fetched message
+//         async function storeStatusFromMessage(statusJid, statusMsg) {
+//             try {
+//                 const statusId = statusMsg.key?.id || `status_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+//                 const phoneNumber = statusJid.split('@')[0];
+                
+//                 // Skip if already cached
+//                 if (tracker.statusCache.has(statusId)) return;
+                
+//                 const statusDetails = {
+//                     id: statusId,
+//                     jid: statusJid,
+//                     timestamp: Date.now(),
+//                     phoneNumber: phoneNumber,
+//                     type: 'text',
+//                     hasMedia: false,
+//                     text: '',
+//                     mediaInfo: null,
+//                     metadata: {},
+//                     fetched: true
+//                 };
+                
+//                 // Extract status content
+//                 const msgContent = statusMsg.message;
+                
+//                 if (msgContent?.conversation) {
+//                     statusDetails.text = msgContent.conversation;
+//                     statusDetails.type = 'text';
+//                 } else if (msgContent?.extendedTextMessage?.text) {
+//                     statusDetails.text = msgContent.extendedTextMessage.text;
+//                     statusDetails.type = 'text';
+//                 }
+                
+//                 // Check for media
+//                 if (msgContent?.imageMessage) {
+//                     statusDetails.hasMedia = true;
+//                     statusDetails.type = 'image';
+//                     statusDetails.caption = msgContent.imageMessage.caption || '';
+//                     statusDetails.mimetype = msgContent.imageMessage.mimetype || 'image/jpeg';
+//                     statusDetails.mediaSize = msgContent.imageMessage.fileLength || 0;
+                    
+//                     statusDetails.mediaInfo = {
+//                         message: statusMsg,
+//                         type: 'image'
+//                     };
+//                 } else if (msgContent?.videoMessage) {
+//                     statusDetails.hasMedia = true;
+//                     statusDetails.type = 'video';
+//                     statusDetails.caption = msgContent.videoMessage.caption || '';
+//                     statusDetails.mimetype = msgContent.videoMessage.mimetype || 'video/mp4';
+//                     statusDetails.mediaSize = msgContent.videoMessage.fileLength || 0;
+                    
+//                     statusDetails.mediaInfo = {
+//                         message: statusMsg,
+//                         type: 'video'
+//                     };
+//                 }
+                
+//                 // Store in cache
+//                 tracker.statusCache.set(statusId, statusDetails);
+//                 tracker.stats.statusesDetected++;
+                
+//                 cleanLog(`Stored status ${statusDetails.type} from ${phoneNumber}`, 'status');
+                
+//                 // Download media if present
+//                 if (statusDetails.hasMedia && statusDetails.mediaInfo) {
+//                     setTimeout(async () => {
+//                         try {
+//                             await downloadAndSaveStatusMedia(statusId, statusDetails);
+//                         } catch (error) {
+//                             cleanLog(`Status media download failed: ${error.message}`, 'error');
+//                         }
+//                     }, 1000);
+//                 }
+                
+//             } catch (error) {
+//                 cleanLog(`Status storage error: ${error.message}`, 'error');
+//             }
+//         }
+        
+//         // ====== STATUS DETECTION FUNCTIONS ======
+        
+//         // Detect and store statuses from updates
+//         async function storeStatusUpdate(statusUpdate) {
+//             try {
+//                 if (!tracker.config.captureStatuses) return;
+                
+//                 const statusData = statusUpdate.status;
+//                 if (!statusData) return;
+                
+//                 const statusJid = statusUpdate.jid;
+//                 const phoneNumber = statusJid.split('@')[0];
+                
+//                 cleanLog(`Status update detected from: ${phoneNumber}`, 'status');
+                
+//                 // Auto-view status if enabled
+//                 if (tracker.config.autoViewStatuses) {
+//                     setTimeout(async () => {
+//                         await fetchAndViewStatus(statusJid);
+//                     }, tracker.config.statusViewDelay);
+//                 }
+                
+//                 // Create status entry
+//                 const statusId = `status_${Date.now()}_${phoneNumber}`;
+                
+//                 const statusDetails = {
+//                     id: statusId,
+//                     jid: statusJid,
+//                     timestamp: Date.now(),
+//                     phoneNumber: phoneNumber,
+//                     type: 'unknown',
+//                     hasMedia: false,
+//                     text: '',
+//                     metadata: statusUpdate,
+//                     autoViewed: tracker.config.autoViewStatuses
+//                 };
+                
+//                 tracker.statusCache.set(statusId, statusDetails);
+//                 tracker.stats.statusesDetected++;
+                
+//                 // Try to fetch content after delay
+//                 if (tracker.config.autoViewStatuses) {
+//                     setTimeout(async () => {
+//                         try {
+//                             await fetchStatusContent(statusJid);
+//                         } catch (error) {
+//                             cleanLog(`Auto-fetch failed: ${error.message}`, 'error');
+//                         }
+//                     }, tracker.config.statusViewDelay + 1000);
+//                 }
+                
+//             } catch (error) {
+//                 cleanLog(`Status update storage error: ${error.message}`, 'error');
+//             }
+//         }
+        
+//         // Download and save status media
+//         async function downloadAndSaveStatusMedia(statusId, statusDetails) {
+//             try {
+//                 if (!statusDetails.mediaInfo) return false;
+                
+//                 const phoneNumber = statusDetails.phoneNumber;
+//                 cleanLog(`Downloading status media for ${phoneNumber}...`, 'status');
+                
+//                 const buffer = await downloadMediaMessage(
+//                     statusDetails.mediaInfo.message,
+//                     'buffer',
+//                     {},
+//                     {
+//                         logger: { level: 'silent' },
+//                         reuploadRequest: sock.updateMediaMessage
+//                     }
+//                 );
                 
 //                 if (!buffer || buffer.length === 0) {
-//                     return sendTextToOwnerDM(messageDetails);
+//                     cleanLog('Empty buffer for status media', 'warning');
+//                     return false;
 //                 }
                 
-//                 // Create detailed caption for owner
-//                 let caption = `🔒 *PRIVATE ANTIDELETE - DELETED ${messageDetails.type.toUpperCase()}*\n\n`;
-//                 caption += `👤 Sender: ${senderName}\n`;
-//                 caption += `📞 Number: ${messageDetails.senderShort}\n`;
-//                 caption += `💬 Chat: ${chatName}\n`;
-//                 caption += `🏷️ Type: ${messageDetails.chatType}\n`;
-//                 caption += `🕒 Time: ${time}\n`;
-//                 caption += `📊 Size: ${Math.round(mediaInfo.size/1024)}KB\n`;
+//                 // Save to file
+//                 await ensureMediaDir();
+//                 const timestamp = Date.now();
+//                 const extension = statusDetails.type === 'video' ? '.mp4' : '.jpg';
+//                 const filename = `status_${phoneNumber}_${timestamp}${extension}`;
+//                 const filePath = path.join(STATUS_STORAGE_PATH, filename);
                 
-//                 if (messageDetails.caption) {
-//                     caption += `📝 Caption: ${messageDetails.caption}\n`;
-//                 }
+//                 await fs.writeFile(filePath, buffer);
                 
-//                 caption += `\n🔐 *Sent to your DM via private antidelete*`;
-                
-//                 // Send based on type
-//                 switch(messageDetails.type) {
-//                     case 'image':
-//                         await sock.sendMessage(ownerJid, {
-//                             image: buffer,
-//                             caption: caption,
-//                             mimetype: mediaInfo.mimetype
-//                         });
-//                         break;
-                        
-//                     case 'video':
-//                         await sock.sendMessage(ownerJid, {
-//                             video: buffer,
-//                             caption: caption,
-//                             mimetype: mediaInfo.mimetype
-//                         });
-//                         break;
-                        
-//                     case 'audio':
-//                         await sock.sendMessage(ownerJid, {
-//                             audio: buffer,
-//                             mimetype: mediaInfo.mimetype,
-//                             ptt: mediaInfo.mimetype?.includes('ogg'),
-//                             caption: caption
-//                         });
-//                         break;
-                        
-//                     case 'document':
-//                         await sock.sendMessage(ownerJid, {
-//                             document: buffer,
-//                             fileName: `${messageDetails.fileName || 'document'}_${Date.now()}`,
-//                             caption: caption,
-//                             mimetype: mediaInfo.mimetype
-//                         });
-//                         break;
-                        
-//                     case 'sticker':
-//                         await sock.sendMessage(ownerJid, {
-//                             sticker: buffer,
-//                             mimetype: mediaInfo.mimetype
-//                         });
-//                         // Send caption separately for stickers
-//                         await sock.sendMessage(ownerJid, {
-//                             text: caption
-//                         });
-//                         break;
-                        
-//                     default:
-//                         return sendTextToOwnerDM(messageDetails);
-//                 }
-                
-//                 tracker.stats.mediaSent++;
-//                 tracker.stats.sentToDm++;
-                
-//                 // Log this DM
-//                 tracker.ownerDmLog.set(messageId, {
-//                     timestamp: Date.now(),
-//                     sender: messageDetails.senderShort,
-//                     type: messageDetails.type,
-//                     chat: chatName
+//                 // Store in status storage
+//                 tracker.statusStorage.set(statusId, {
+//                     filePath: filePath,
+//                     buffer: buffer,
+//                     type: statusDetails.type,
+//                     mimetype: statusDetails.mimetype || (statusDetails.type === 'video' ? 'video/mp4' : 'image/jpeg'),
+//                     filename: filename,
+//                     size: buffer.length,
+//                     timestamp: timestamp,
+//                     jid: statusDetails.jid,
+//                     phoneNumber: phoneNumber
 //                 });
                 
-//                 cleanLog(`Media sent to owner DM: ${messageDetails.type}`, 'dm');
+//                 tracker.stats.statusesDownloaded++;
+//                 cleanLog(`Status media saved: ${filename} (${Math.round(buffer.length/1024)}KB)`, 'success');
 //                 return true;
                 
 //             } catch (error) {
-//                 cleanLog(`Send to DM error: ${error.message}`, 'error');
+//                 cleanLog(`Status download error: ${error.message}`, 'error');
 //                 return false;
 //             }
 //         }
         
-//         // Send text notification to chat
-//         async function sendTextNotification(messageDetails) {
-//             const time = new Date(messageDetails.timestamp).toLocaleTimeString();
-//             const senderName = messageDetails.pushName || messageDetails.senderShort;
-            
-//             let textMessage = `🚫 *DELETED MESSAGE*\n\n`;
-//             textMessage += `👤 *From:* ${senderName}\n`;
-//             textMessage += `📞 *Number:* ${messageDetails.senderShort}\n`;
-//             textMessage += `🕒 *Time:* ${time}\n`;
-//             textMessage += `📊 *Type:* ${messageDetails.type.toUpperCase()}\n`;
-            
-//             if (messageDetails.text) {
-//                 textMessage += `\n💬 *Message:*\n${messageDetails.text.substring(0, 500)}`;
-//                 if (messageDetails.text.length > 500) textMessage += '...';
+//         // Handle deleted status
+//         async function handleDeletedStatus(deletedStatusId) {
+//             try {
+//                 if (!tracker.config.captureStatuses) return;
+                
+//                 cleanLog(`Status deletion detected: ${deletedStatusId}`, 'status');
+//                 tracker.stats.statusesDeleted++;
+                
+//                 const cachedStatus = tracker.statusCache.get(deletedStatusId);
+//                 if (!cachedStatus) {
+//                     cleanLog(`Status not found in cache: ${deletedStatusId}`, 'warning');
+//                     return;
+//                 }
+                
+//                 tracker.statusCache.delete(deletedStatusId);
+                
+//                 const privacy = tracker.config.statusPrivacy;
+//                 const ownerJid = getOwnerJid();
+                
+//                 if (privacy === 'none') return;
+                
+//                 if (privacy === 'owner' && ownerJid) {
+//                     await sendStatusToOwnerDM(cachedStatus);
+//                 } else if (privacy === 'all') {
+//                     if (ownerJid) {
+//                         await sendStatusToOwnerDM(cachedStatus);
+//                     }
+//                 }
+                
+//                 tracker.stats.statusesRetrieved++;
+                
+//             } catch (error) {
+//                 cleanLog(`Status retrieval error: ${error.message}`, 'error');
 //             }
-            
-//             if (messageDetails.hasMedia) {
-//                 textMessage += `\n\n📎 *Media captured but not retrievable*`;
-//             }
-            
-//             textMessage += `\n\n────────────\n`;
-//             textMessage += `🔍 *Captured by antidelete*`;
-            
-//             await sock.sendMessage(messageDetails.chat, { text: textMessage });
-//             tracker.stats.sentToChat++;
-//             cleanLog('Text notification sent to chat', 'info');
 //         }
         
-//         // Send text to owner DM
-//         async function sendTextToOwnerDM(messageDetails) {
+//         // Send deleted status to owner DM
+//         async function sendStatusToOwnerDM(statusDetails) {
 //             try {
 //                 const ownerJid = getOwnerJid();
-//                 if (!ownerJid) return false;
-                
-//                 const time = new Date(messageDetails.timestamp).toLocaleString();
-//                 const senderName = messageDetails.pushName || messageDetails.senderShort;
-//                 const chatName = messageDetails.chatName || 'Unknown Chat';
-                
-//                 let textMessage = `🔒 *PRIVATE ANTIDELETE - DELETED MESSAGE*\n\n`;
-//                 textMessage += `👤 *Sender:* ${senderName}\n`;
-//                 textMessage += `📞 *Number:* ${messageDetails.senderShort}\n`;
-//                 textMessage += `💬 *Chat:* ${chatName}\n`;
-//                 textMessage += `🏷️ *Type:* ${messageDetails.chatType}\n`;
-//                 textMessage += `🕒 *Time:* ${time}\n`;
-//                 textMessage += `📊 *Message Type:* ${messageDetails.type.toUpperCase()}\n`;
-                
-//                 if (messageDetails.text) {
-//                     textMessage += `\n📝 *Content:*\n${messageDetails.text.substring(0, 800)}`;
-//                     if (messageDetails.text.length > 800) textMessage += '...';
+//                 if (!ownerJid) {
+//                     cleanLog('Owner JID not found for status DM', 'error');
+//                     return false;
 //                 }
                 
-//                 if (messageDetails.hasMedia) {
-//                     textMessage += `\n\n📎 *Media:* ${tracker.mediaStorage.has(messageDetails.id) ? 'Captured ✓' : 'Not retrievable'}`;
+//                 const statusMedia = tracker.statusStorage.get(statusDetails.id);
+//                 const time = new Date(statusDetails.timestamp).toLocaleString();
+//                 const senderNumber = statusDetails.phoneNumber;
+                
+//                 let caption = `📱 *DELETED STATUS CAPTURED*\n\n`;
+//                 caption += `👤 From: ${senderNumber}\n`;
+//                 caption += `🕒 Posted: ${time}\n`;
+//                 caption += `📊 Type: ${statusDetails.hasMedia ? statusDetails.type.toUpperCase() : 'TEXT'}\n`;
+                
+//                 if (statusDetails.text) {
+//                     caption += `\n💬 Status Text:\n${statusDetails.text.substring(0, 500)}`;
+//                     if (statusDetails.text.length > 500) caption += '...';
 //                 }
                 
-//                 textMessage += `\n\n────────────\n`;
-//                 textMessage += `🔐 *Private antidelete capture*`;
+//                 if (statusDetails.caption) {
+//                     caption += `\n\n📝 Media Caption:\n${statusDetails.caption}`;
+//                 }
                 
-//                 await sock.sendMessage(ownerJid, { text: textMessage });
-//                 tracker.stats.sentToDm++;
+//                 caption += `\n\n────────────\n`;
+//                 caption += `🔍 *Captured by antidelete status monitor*`;
                 
-//                 // Log this DM
-//                 tracker.ownerDmLog.set(messageDetails.id, {
+//                 if (statusDetails.hasMedia && statusMedia) {
+//                     try {
+//                         let buffer = statusMedia.buffer;
+//                         if (!buffer) {
+//                             buffer = await fs.readFile(statusMedia.filePath);
+//                         }
+                        
+//                         if (buffer && buffer.length > 0) {
+//                             if (statusDetails.type === 'image') {
+//                                 await sock.sendMessage(ownerJid, {
+//                                     image: buffer,
+//                                     caption: caption,
+//                                     mimetype: statusMedia.mimetype
+//                                 });
+//                             } else if (statusDetails.type === 'video') {
+//                                 await sock.sendMessage(ownerJid, {
+//                                     video: buffer,
+//                                     caption: caption,
+//                                     mimetype: statusMedia.mimetype
+//                                 });
+//                             }
+//                         } else {
+//                             await sock.sendMessage(ownerJid, { text: caption });
+//                         }
+//                     } catch (mediaError) {
+//                         cleanLog(`Status media send error: ${mediaError.message}`, 'error');
+//                         await sock.sendMessage(ownerJid, { text: caption });
+//                     }
+//                 } else {
+//                     await sock.sendMessage(ownerJid, { text: caption });
+//                 }
+                
+//                 tracker.statusDmLog.set(statusDetails.id, {
 //                     timestamp: Date.now(),
-//                     sender: messageDetails.senderShort,
-//                     type: messageDetails.type,
-//                     chat: chatName
+//                     sender: senderNumber,
+//                     type: statusDetails.type,
+//                     hasMedia: statusDetails.hasMedia
 //                 });
                 
-//                 cleanLog('Text sent to owner DM', 'dm');
+//                 cleanLog(`Status sent to owner DM: ${senderNumber}`, 'status');
 //                 return true;
                 
 //             } catch (error) {
-//                 cleanLog(`DM text error: ${error.message}`, 'error');
+//                 cleanLog(`Status DM error: ${error.message}`, 'error');
 //                 return false;
 //             }
 //         }
         
-//         // Clean up media
-//         async function cleanupMedia(messageId) {
-//             try {
-//                 if (tracker.mediaStorage.has(messageId)) {
-//                     const mediaInfo = tracker.mediaStorage.get(messageId);
-//                     try {
-//                         await fs.unlink(mediaInfo.filePath);
-//                         cleanLog(`Cleaned: ${mediaInfo.filename}`, 'info');
-//                     } catch (error) {
-//                         // File might already be deleted
-//                     }
-//                     tracker.mediaStorage.delete(messageId);
-//                 }
-//             } catch (error) {
-//                 // Silent cleanup
+//         // Setup status viewing interval
+//         function setupStatusViewInterval() {
+//             if (tracker.statusViewInterval) {
+//                 clearInterval(tracker.statusViewInterval);
 //             }
+            
+//             tracker.statusViewInterval = setInterval(async () => {
+//                 await processStatusViewQueue();
+//             }, 10 * 1000); // Process queue every 10 seconds
 //         }
-        
-//         // ====== CORE FUNCTIONS ======
         
 //         // Setup cleanup
 //         function setupCleanupInterval() {
@@ -620,7 +1003,7 @@
             
 //             tracker.cleanupInterval = setInterval(async () => {
 //                 await cleanupOldData();
-//             }, 10 * 60 * 1000); // Every 10 minutes
+//             }, 10 * 60 * 1000);
 //         }
         
 //         // Cleanup old data
@@ -635,6 +1018,13 @@
 //                 }
 //             }
             
+//             // Clean status media files
+//             for (const [statusId, statusMedia] of tracker.statusStorage.entries()) {
+//                 if (now - statusMedia.timestamp > maxAge) {
+//                     await cleanupStatusMedia(statusId);
+//                 }
+//             }
+            
 //             // Clean old messages
 //             for (const [msgId, data] of tracker.messageCache.entries()) {
 //                 if (now - data.timestamp > maxAge) {
@@ -642,197 +1032,53 @@
 //                 }
 //             }
             
-//             // Clean old DM logs
-//             for (const [msgId, log] of tracker.ownerDmLog.entries()) {
-//                 if (now - log.timestamp > maxAge) {
-//                     tracker.ownerDmLog.delete(msgId);
+//             // Clean old statuses
+//             for (const [statusId, data] of tracker.statusCache.entries()) {
+//                 if (now - data.timestamp > maxAge) {
+//                     tracker.statusCache.delete(statusId);
 //                 }
 //             }
             
 //             tracker.lastCleanup = now;
 //         }
         
-//         // Get chat name
-//         async function getChatName(chatId) {
+//         // Clean up status media
+//         async function cleanupStatusMedia(statusId) {
 //             try {
-//                 if (chatId.endsWith('@g.us')) {
-//                     const metadata = await sock.groupMetadata(chatId);
-//                     return metadata.subject || 'Group Chat';
+//                 if (tracker.statusStorage.has(statusId)) {
+//                     const statusMedia = tracker.statusStorage.get(statusId);
+//                     try {
+//                         await fs.unlink(statusMedia.filePath);
+//                     } catch (error) {}
+//                     tracker.statusStorage.delete(statusId);
 //                 }
-//                 return 'Private Chat';
-//             } catch (error) {
-//                 return 'Unknown Chat';
-//             }
+//             } catch (error) {}
 //         }
         
-//         // Store message with media
-//         async function storeMessageWithMedia(message) {
+//         // Clean up media
+//         async function cleanupMedia(messageId) {
 //             try {
-//                 const msgId = message.key.id;
-//                 const msgChat = message.key.remoteJid;
-                
-//                 if (tracker.messageCache.has(msgId)) return;
-                
-//                 const sender = message.key.participant || msgChat;
-//                 const senderShort = sender.split('@')[0];
-                
-//                 // Extract message info
-//                 let text = '';
-//                 let type = 'text';
-//                 let fileName = '';
-//                 let caption = '';
-//                 let hasMedia = false;
-//                 let mimetype = '';
-                
-//                 const msgContent = message.message;
-                
-//                 // Extract text
-//                 if (msgContent?.conversation) {
-//                     text = msgContent.conversation;
-//                 } else if (msgContent?.extendedTextMessage?.text) {
-//                     text = msgContent.extendedTextMessage.text;
+//                 if (tracker.mediaStorage.has(messageId)) {
+//                     const mediaInfo = tracker.mediaStorage.get(messageId);
+//                     try {
+//                         await fs.unlink(mediaInfo.filePath);
+//                     } catch (error) {}
+//                     tracker.mediaStorage.delete(messageId);
 //                 }
-                
-//                 // Detect media type
-//                 if (msgContent?.imageMessage) {
-//                     type = 'image';
-//                     caption = msgContent.imageMessage.caption || '';
-//                     mimetype = msgContent.imageMessage.mimetype || 'image/jpeg';
-//                     hasMedia = true;
-//                 } else if (msgContent?.videoMessage) {
-//                     type = 'video';
-//                     caption = msgContent.videoMessage.caption || '';
-//                     mimetype = msgContent.videoMessage.mimetype || 'video/mp4';
-//                     hasMedia = true;
-//                 } else if (msgContent?.audioMessage) {
-//                     type = 'audio';
-//                     mimetype = msgContent.audioMessage.mimetype || 'audio/mp4';
-//                     hasMedia = true;
-//                     if (!text) text = 'Audio message';
-//                 } else if (msgContent?.documentMessage) {
-//                     type = 'document';
-//                     fileName = msgContent.documentMessage.fileName || 'Document';
-//                     mimetype = msgContent.documentMessage.mimetype || 'application/octet-stream';
-//                     hasMedia = true;
-//                     if (!text) text = fileName;
-//                 } else if (msgContent?.stickerMessage) {
-//                     type = 'sticker';
-//                     mimetype = msgContent.stickerMessage.mimetype || 'image/webp';
-//                     hasMedia = true;
-//                     if (!text) text = 'Sticker';
-//                 }
-                
-//                 if (!text && caption) text = caption;
-                
-//                 // Get chat name
-//                 const chatName = await getChatName(msgChat);
-//                 const chatType = msgChat.endsWith('@g.us') ? 'Group' : 'Private';
-                
-//                 // Store message details
-//                 const messageDetails = {
-//                     id: msgId,
-//                     chat: msgChat,
-//                     sender: sender,
-//                     senderShort: senderShort,
-//                     timestamp: Date.now(),
-//                     messageTimestamp: message.messageTimestamp || Date.now(),
-//                     pushName: message.pushName || 'Unknown',
-//                     text: text,
-//                     type: type,
-//                     hasMedia: hasMedia,
-//                     fileName: fileName,
-//                     caption: caption,
-//                     mimetype: mimetype,
-//                     originalMessage: message,
-//                     mediaDownloaded: false,
-//                     chatName: chatName,
-//                     chatType: chatType
-//                 };
-                
-//                 tracker.messageCache.set(msgId, messageDetails);
-                
-//                 // Download media in background if it exists
-//                 if (hasMedia) {
-//                     setTimeout(async () => {
-//                         try {
-//                             cleanLog(`Downloading media for ${msgId.substring(0, 8)}...`, 'media');
-//                             const buffer = await downloadMediaProperly(message);
-                            
-//                             if (buffer) {
-//                                 await saveMediaFile(msgId, buffer, type, mimetype, message);
-//                                 messageDetails.mediaDownloaded = true;
-//                                 cleanLog(`Media saved for ${msgId.substring(0, 8)}`, 'success');
-//                             } else {
-//                                 cleanLog(`Could not download media for ${msgId.substring(0, 8)}`, 'warning');
-//                             }
-//                         } catch (error) {
-//                             cleanLog(`Background download error: ${error.message}`, 'error');
-//                         }
-//                     }, 1000);
-//                 }
-                
-//             } catch (error) {
-//                 cleanLog(`Store error: ${error.message}`, 'error');
-//             }
-//         }
-        
-//         // Handle deleted message
-//         async function handleDeletedMessage(deletedKey) {
-//             try {
-//                 const deletedId = deletedKey.id;
-                
-//                 if (!deletedId || tracker.processedDeletions.has(deletedId)) return;
-                
-//                 tracker.processedDeletions.add(deletedId);
-//                 setTimeout(() => {
-//                     tracker.processedDeletions.delete(deletedId);
-//                 }, 10000);
-                
-//                 cleanLog(`Deletion detected: ${deletedId.substring(0, 8)}...`, 'deletion');
-//                 tracker.stats.deletionsDetected++;
-                
-//                 const cachedMessage = tracker.messageCache.get(deletedId);
-                
-//                 if (cachedMessage) {
-//                     tracker.messageCache.delete(deletedId);
-                    
-//                     // Process based on mode
-//                     if (tracker.mode === 'private') {
-//                         await sendMediaToOwnerDM(cachedMessage);
-//                     } else {
-//                         await sendMediaToChat(cachedMessage);
-//                     }
-                    
-//                     tracker.stats.retrievedSuccessfully++;
-//                     if (cachedMessage.hasMedia) {
-//                         tracker.stats.mediaRetrieved++;
-//                     }
-                    
-//                     // Clean up after delay
-//                     setTimeout(() => {
-//                         cleanupMedia(deletedId);
-//                     }, 30000);
-                    
-//                 } else {
-//                     cleanLog(`Not found in cache: ${deletedId.substring(0, 8)}...`, 'warning');
-//                     tracker.stats.falsePositives++;
-//                 }
-                
-//             } catch (error) {
-//                 cleanLog(`Retrieval error: ${error.message}`, 'error');
-//             }
+//             } catch (error) {}
 //         }
         
 //         // Setup listener
 //         function setupTerminalListener() {
 //             if (tracker.listenerSetup) return;
             
-//             cleanLog(`Setting up antidelete in ${tracker.mode} mode...`, 'system');
+//             cleanLog(`Setting up antidelete with status support in ${tracker.mode} mode...`, 'system');
             
 //             ensureMediaDir();
 //             setupCleanupInterval();
+//             setupStatusViewInterval();
             
-//             // Store messages
+//             // Store regular messages
 //             sock.ev.on('messages.upsert', async ({ messages, type }) => {
 //                 try {
 //                     if (!tracker.active) return;
@@ -840,6 +1086,15 @@
 //                     if (type === 'notify') {
 //                         for (const message of messages) {
 //                             if (message.key?.fromMe) continue;
+                            
+//                             // Check if it's a status message
+//                             const chatId = message.key.remoteJid;
+//                             if (chatId === 'status@broadcast') {
+//                                 cleanLog(`Broadcast status detected`, 'status');
+//                                 // This is a status message
+//                                 await storeStatusFromBroadcast(message);
+//                                 continue;
+//                             }
                             
 //                             const msgId = message.key?.id;
 //                             if (!msgId) continue;
@@ -853,7 +1108,80 @@
 //                 }
 //             });
             
-//             // Handle deletions
+//             // Store status from broadcast
+//             async function storeStatusFromBroadcast(message) {
+//                 try {
+//                     const msgId = message.key?.id || `status_broadcast_${Date.now()}`;
+                    
+//                     // Extract sender info from status
+//                     const pushName = message.pushName || 'Unknown';
+//                     const statusContent = message.message;
+                    
+//                     let text = '';
+//                     let type = 'text';
+//                     let hasMedia = false;
+//                     let mimetype = '';
+                    
+//                     if (statusContent?.conversation) {
+//                         text = statusContent.conversation;
+//                     } else if (statusContent?.extendedTextMessage?.text) {
+//                         text = statusContent.extendedTextMessage.text;
+//                     } else if (statusContent?.imageMessage) {
+//                         type = 'image';
+//                         text = statusContent.imageMessage.caption || '';
+//                         mimetype = statusContent.imageMessage.mimetype || 'image/jpeg';
+//                         hasMedia = true;
+//                     } else if (statusContent?.videoMessage) {
+//                         type = 'video';
+//                         text = statusContent.videoMessage.caption || '';
+//                         mimetype = statusContent.videoMessage.mimetype || 'video/mp4';
+//                         hasMedia = true;
+//                     }
+                    
+//                     // Try to get sender JID from status
+//                     let senderJid = null;
+//                     if (message.key?.participant) {
+//                         senderJid = message.key.participant;
+//                     }
+                    
+//                     if (senderJid) {
+//                         const statusDetails = {
+//                             id: msgId,
+//                             jid: senderJid,
+//                             timestamp: Date.now(),
+//                             phoneNumber: senderJid.split('@')[0],
+//                             pushName: pushName,
+//                             type: type,
+//                             hasMedia: hasMedia,
+//                             text: text,
+//                             mimetype: mimetype,
+//                             fromBroadcast: true,
+//                             mediaInfo: hasMedia ? { message: message, type: type } : null
+//                         };
+                        
+//                         tracker.statusCache.set(msgId, statusDetails);
+//                         tracker.stats.statusesDetected++;
+                        
+//                         cleanLog(`Broadcast status stored: ${pushName} (${type})`, 'status');
+                        
+//                         // Download media if present
+//                         if (hasMedia) {
+//                             setTimeout(async () => {
+//                                 try {
+//                                     await downloadAndSaveStatusMedia(msgId, statusDetails);
+//                                 } catch (error) {
+//                                     cleanLog(`Broadcast media download failed: ${error.message}`, 'error');
+//                                 }
+//                             }, 1000);
+//                         }
+//                     }
+                    
+//                 } catch (error) {
+//                     cleanLog(`Broadcast status error: ${error.message}`, 'error');
+//                 }
+//             }
+            
+//             // Handle message deletions
 //             sock.ev.on('messages.update', async (updates) => {
 //                 try {
 //                     if (!tracker.active) return;
@@ -864,6 +1192,24 @@
 //                         const chatId = update.key?.remoteJid;
                         
 //                         if (!messageId || !chatId) continue;
+                        
+//                         // Check if it's a status update
+//                         if (updateData.status !== undefined) {
+//                             const statusValue = updateData.status;
+//                             const jid = chatId;
+                            
+//                             cleanLog(`Status update: ${jid} → ${statusValue}`, 'status');
+                            
+//                             if (statusValue === 2) { // Status posted
+//                                 await storeStatusUpdate({
+//                                     jid: jid,
+//                                     status: { id: messageId }
+//                                 });
+//                             } else if (statusValue === 3) { // Status deleted
+//                                 await handleDeletedStatus(messageId);
+//                             }
+//                             continue;
+//                         }
                         
 //                         const isDeleted = 
 //                             updateData.status === 6 ||
@@ -880,8 +1226,24 @@
 //                 }
 //             });
             
+//             // Listen for presence updates (status deletions)
+//             sock.ev.on('presence.update', async (update) => {
+//                 try {
+//                     if (!tracker.active || !tracker.config.captureStatuses) return;
+                    
+//                     if (update.type === 'unavailable' && update.id) {
+//                         const statusId = update.id;
+//                         if (tracker.statusCache.has(statusId)) {
+//                             await handleDeletedStatus(statusId);
+//                         }
+//                     }
+//                 } catch (error) {
+//                     cleanLog(`Status presence error: ${error.message}`, 'error');
+//                 }
+//             });
+            
 //             tracker.listenerSetup = true;
-//             cleanLog(`Listener ready in ${tracker.mode} mode`, 'success');
+//             cleanLog(`Listener ready with status support in ${tracker.mode} mode`, 'success');
 //         }
         
 //         // ====== COMMAND HANDLER ======
@@ -889,7 +1251,6 @@
 //             case 'on':
 //             case 'enable':
 //             case 'start':
-//                 // Check if user is owner for private mode
 //                 if (args[1]?.toLowerCase() === 'private') {
 //                     if (!isOwner(msg)) {
 //                         return sock.sendMessage(chatId, {
@@ -910,150 +1271,211 @@
                 
 //                 setupTerminalListener();
                 
-//                 const modeText = tracker.mode === 'private' ? 
+//                 const modeDescription = tracker.mode === 'private' ? 
 //                     `🔒 *PRIVATE MODE*\n\nAll deleted messages will be sent to owner's DM:\n${getOwnerJid() || 'Owner not set'}` :
 //                     `🌐 *PUBLIC MODE*\n\nDeleted messages will be shown in the original chat.`;
+                
+//                 const statusConfig = tracker.config.captureStatuses ? 
+//                     `📱 *Status Monitoring:* ✅ ENABLED\n• Auto-view: ${tracker.config.autoViewStatuses ? 'ON' : 'OFF'}\n• Privacy: ${tracker.config.statusPrivacy}` :
+//                     `📱 *Status Monitoring:* ❌ DISABLED`;
                 
 //                 cleanLog(`Antidelete ${tracker.mode.toUpperCase()} mode enabled`, 'success');
                 
 //                 await sock.sendMessage(chatId, {
-//                     text: `✅ *ANTIDELETE ENABLED*\n\n${modeText}\n\nFeatures:\n• Uses proper media download\n• Auto-cleanup after sending\n• Captures all message types\n\nUse \`${PREFIX}antidelete test\` to verify.`
+//                     text: `✅ *ANTIDELETE ENABLED*\n\n${modeDescription}\n\n${statusConfig}\n\nFeatures:\n• Message/media antidelete\n• Status monitoring & auto-view\n• Auto-cleanup system\n\nUse \`${PREFIX}antidelete test\` to verify.`
 //                 }, { quoted: msg });
 //                 break;
                 
 //             case 'off':
-//             case 'disable':
-//             case 'stop':
 //                 tracker.active = false;
 //                 if (tracker.cleanupInterval) {
 //                     clearInterval(tracker.cleanupInterval);
 //                     tracker.cleanupInterval = null;
 //                 }
-                
-//                 // Clean up all files
-//                 for (const msgId of tracker.mediaStorage.keys()) {
-//                     await cleanupMedia(msgId);
+//                 if (tracker.statusViewInterval) {
+//                     clearInterval(tracker.statusViewInterval);
+//                     tracker.statusViewInterval = null;
 //                 }
                 
 //                 cleanLog('Antidelete disabled', 'system');
                 
 //                 await sock.sendMessage(chatId, {
-//                     text: `✅ *ANTIDELETE DISABLED*\n\nAll media files cleaned up.\nMode was: ${tracker.mode.toUpperCase()}\n\nUse \`${PREFIX}antidelete on\` to enable.`
+//                     text: `✅ *ANTIDELETE DISABLED*\n\nMode was: ${tracker.mode.toUpperCase()}\n\nUse \`${PREFIX}antidelete on\` to enable.`
 //                 }, { quoted: msg });
 //                 break;
                 
-//             case 'mode':
+//             case 'status':
 //                 if (!isOwner(msg)) {
 //                     return sock.sendMessage(chatId, {
-//                         text: `❌ *Owner Only*\n\nOnly the bot owner can change modes.`
+//                         text: `❌ *Owner Only*\n\nStatus monitoring settings can only be changed by the owner.`
 //                     }, { quoted: msg });
 //                 }
                 
-//                 const newMode = args[1]?.toLowerCase();
-//                 if (!newMode || !['public', 'private'].includes(newMode)) {
-//                     return sock.sendMessage(chatId, {
-//                         text: `🔧 *Mode Settings*\n\nCurrent mode: ${tracker.mode.toUpperCase()}\n\nAvailable modes:\n• \`${PREFIX}antidelete mode public\` - Show in chat\n• \`${PREFIX}antidelete mode private\` - Send to owner DM\n\nOwner: ${OWNER_NUMBER || 'Not set'}`
-//                     }, { quoted: msg });
-//                 }
+//                 const subCmd = args[1]?.toLowerCase();
                 
-//                 const oldMode = tracker.mode;
-//                 tracker.mode = newMode;
-                
-//                 cleanLog(`Mode changed: ${oldMode} → ${newMode}`, 'mode');
-                
-//                 await sock.sendMessage(chatId, {
-//                     text: `🔄 *Mode Changed*\n\n${oldMode.toUpperCase()} → ${newMode.toUpperCase()}\n\n${
-//                         newMode === 'private' ? 
-//                         `Deleted messages will now be sent to your DM.` :
-//                         `Deleted messages will now be shown in the original chat.`
-//                     }`
-//                 }, { quoted: msg });
-//                 break;
-                
-//             case 'test':
-//                 if (tracker.mode === 'private' && !isOwner(msg)) {
-//                     return sock.sendMessage(chatId, {
-//                         text: `❌ *Owner Only*\n\nPrivate mode tests can only be run by the owner.\n\nCurrent owner: ${OWNER_NUMBER || 'Not set'}`
-//                     }, { quoted: msg });
-//                 }
-                
-//                 cleanLog('Sending test messages...', 'info');
-                
-//                 // Send test messages based on mode
-//                 if (tracker.mode === 'private') {
-//                     await sock.sendMessage(chatId, {
-//                         text: `🔒 *PRIVATE MODE TEST*\n\n1. Send any message in this chat\n2. Delete it\n3. It will be sent to owner's DM\n\nOwner: ${OWNER_NUMBER || 'Not set'}`
-//                     });
+//                 if (!subCmd) {
+//                     const statusInfo = `
+// 📱 *Status Monitoring Settings*
+
+// Capture: ${tracker.config.captureStatuses ? '✅ ENABLED' : '❌ DISABLED'}
+// Auto-view: ${tracker.config.autoViewStatuses ? '✅ ON' : '❌ OFF'}
+// Privacy: ${tracker.config.statusPrivacy.toUpperCase()}
+// View Delay: ${tracker.config.statusViewDelay}ms
+
+// 📊 *Statistics:*
+// Detected: ${tracker.stats.statusesDetected}
+// Viewed: ${tracker.stats.statusesViewed}
+// Downloaded: ${tracker.stats.statusesDownloaded}
+// Deleted: ${tracker.stats.statusesDeleted}
+// Retrieved: ${tracker.stats.statusesRetrieved}
+// Cached: ${tracker.statusCache.size}
+// Queue: ${tracker.statusViewQueue.size}
+
+// 💡 *Commands:*
+// • \`${PREFIX}antidelete status on/off\` - Toggle capture
+// • \`${PREFIX}antidelete status view on/off\` - Auto-view
+// • \`${PREFIX}antidelete status privacy <owner/all/none>\`
+// • \`${PREFIX}antidelete status delay <ms>\` - Set view delay
+// • \`${PREFIX}antidelete status fetch <number>\` - Fetch specific status
+// • \`${PREFIX}antidelete status clear\` - Clear cache
+// `;
                     
-//                     // Also send a DM to owner if available
-//                     const ownerJid = getOwnerJid();
-//                     if (ownerJid) {
-//                         await sock.sendMessage(ownerJid, {
-//                             text: `🔒 *Private Antidelete Test*\n\nIf someone deletes a message, it will appear here.\n\nCurrent chat: ${await getChatName(chatId)}`
-//                         });
-//                     }
-//                 } else {
-//                     await sock.sendMessage(chatId, {
-//                         text: `🌐 *PUBLIC MODE TEST*\n\n1. Delete this message\n2. It should reappear in this chat\n3. Try with images/videos too!`
-//                     });
+//                     await sock.sendMessage(chatId, { text: statusInfo }, { quoted: msg });
+//                     return;
 //                 }
                 
-//                 cleanLog('Test instructions sent', 'success');
-//                 break;
-                
-//             case 'stats':
-//                 const successRate = tracker.stats.mediaDownloaded > 0 ? 
-//                     Math.round((tracker.stats.mediaSent / tracker.stats.mediaDownloaded) * 100) : 0;
-                
-//                 const statsText = `📊 *Antidelete Statistics*\n\n` +
-//                     `Mode: ${tracker.mode.toUpperCase()}\n` +
-//                     `Status: ${tracker.active ? '✅ ACTIVE' : '❌ INACTIVE'}\n` +
-//                     `Messages cached: ${tracker.messageCache.size}\n` +
-//                     `Media files: ${tracker.mediaStorage.size}\n\n` +
-//                     `📈 *Performance:*\n` +
-//                     `• Deletions detected: ${tracker.stats.deletionsDetected}\n` +
-//                     `• Successfully retrieved: ${tracker.stats.retrievedSuccessfully}\n` +
-//                     `• Media downloaded: ${tracker.stats.mediaDownloaded}\n` +
-//                     `• Media sent: ${tracker.stats.mediaSent}\n` +
-//                     `• Success rate: ${successRate}%\n` +
-//                     `• Sent to DM: ${tracker.stats.sentToDm}\n` +
-//                     `• Sent to chat: ${tracker.stats.sentToChat}\n` +
-//                     `• False positives: ${tracker.stats.falsePositives}`;
-                
-//                 console.log('\n📊 ANTIDELETE STATISTICS');
-//                 console.log('─'.repeat(60));
-//                 console.log(`Mode: ${tracker.mode}`);
-//                 console.log(`Status: ${tracker.active ? 'ACTIVE' : 'INACTIVE'}`);
-//                 console.log(`Messages cached: ${tracker.messageCache.size}`);
-//                 console.log(`Media files: ${tracker.mediaStorage.size}`);
-//                 console.log(`Owner DMs sent: ${tracker.stats.sentToDm}`);
-//                 console.log(`Chat messages sent: ${tracker.stats.sentToChat}`);
-//                 console.log(`Media success rate: ${successRate}%`);
-//                 console.log('─'.repeat(60));
-                
-//                 await sock.sendMessage(chatId, {
-//                     text: statsText
-//                 }, { quoted: msg });
-//                 break;
-                
-//             case 'owner':
-//             case 'whoami':
-//                 const ownerInfo = jidManager.getOwnerInfo ? jidManager.getOwnerInfo() : {
-//                     cleanJid: getOwnerJid(),
-//                     cleanNumber: OWNER_NUMBER,
-//                     isLid: false
-//                 };
-                
-//                 const isUserOwner = isOwner(msg);
-                
-//                 await sock.sendMessage(chatId, {
-//                     text: `👑 *Owner Information*\n\n` +
-//                         `Owner Number: ${ownerInfo.cleanNumber || 'Not set'}\n` +
-//                         `Owner JID: \`${ownerInfo.cleanJid || 'Not set'}\`\n` +
-//                         `You are ${isUserOwner ? '✅ THE OWNER' : '❌ NOT THE OWNER'}\n\n` +
-//                         `Current antidelete mode: ${tracker.mode.toUpperCase()}\n` +
-//                         `Private mode ${isUserOwner ? 'available ✓' : 'locked 🔒'}`
-//                 }, { quoted: msg });
+//                 switch (subCmd) {
+//                     case 'on':
+//                         tracker.config.captureStatuses = true;
+//                         await sock.sendMessage(chatId, {
+//                             text: `✅ *Status Capture ENABLED*\n\nDeleted statuses will be captured.`
+//                         }, { quoted: msg });
+//                         break;
+                        
+//                     case 'off':
+//                         tracker.config.captureStatuses = false;
+//                         await sock.sendMessage(chatId, {
+//                             text: `✅ *Status Capture DISABLED*\n\nStatus monitoring turned off.`
+//                         }, { quoted: msg });
+//                         break;
+                        
+//                     case 'view':
+//                         const viewMode = args[2]?.toLowerCase();
+//                         if (viewMode === 'on') {
+//                             tracker.config.autoViewStatuses = true;
+//                             setupStatusViewInterval();
+//                             await sock.sendMessage(chatId, {
+//                                 text: `✅ *Auto-view ENABLED*\n\nStatuses will be automatically viewed and downloaded.`
+//                             }, { quoted: msg });
+//                         } else if (viewMode === 'off') {
+//                             tracker.config.autoViewStatuses = false;
+//                             if (tracker.statusViewInterval) {
+//                                 clearInterval(tracker.statusViewInterval);
+//                                 tracker.statusViewInterval = null;
+//                             }
+//                             await sock.sendMessage(chatId, {
+//                                 text: `✅ *Auto-view DISABLED*\n\nStatus auto-viewing turned off.`
+//                             }, { quoted: msg });
+//                         } else {
+//                             await sock.sendMessage(chatId, {
+//                                 text: `❓ Usage: \`${PREFIX}antidelete status view on/off\``
+//                             }, { quoted: msg });
+//                         }
+//                         break;
+                        
+//                     case 'fetch':
+//                         const number = args[2];
+//                         if (!number) {
+//                             await sock.sendMessage(chatId, {
+//                                 text: `❓ Usage: \`${PREFIX}antidelete status fetch <number>\``
+//                             }, { quoted: msg });
+//                             return;
+//                         }
+                        
+//                         const fetchJid = number.includes('@') ? number : `${number}@s.whatsapp.net`;
+                        
+//                         await sock.sendMessage(chatId, {
+//                             text: `⏳ Fetching status for ${number}...`
+//                         }, { quoted: msg });
+                        
+//                         try {
+//                             const success = await fetchStatusContent(fetchJid);
+//                             if (success) {
+//                                 await sock.sendMessage(chatId, {
+//                                     text: `✅ Status fetched successfully for ${number}`
+//                                 });
+//                             } else {
+//                                 await sock.sendMessage(chatId, {
+//                                     text: `❌ Could not fetch status for ${number}`
+//                                 });
+//                             }
+//                         } catch (error) {
+//                             await sock.sendMessage(chatId, {
+//                                 text: `❌ Error fetching status: ${error.message}`
+//                             });
+//                         }
+//                         break;
+                        
+//                     case 'delay':
+//                         const delayMs = parseInt(args[2]);
+//                         if (!delayMs || delayMs < 0) {
+//                             await sock.sendMessage(chatId, {
+//                                 text: `❓ Usage: \`${PREFIX}antidelete status delay <milliseconds>\``
+//                             }, { quoted: msg });
+//                             return;
+//                         }
+                        
+//                         tracker.config.statusViewDelay = delayMs;
+//                         await sock.sendMessage(chatId, {
+//                             text: `✅ *View delay updated*\n\nDelay set to: ${delayMs}ms`
+//                         }, { quoted: msg });
+//                         break;
+                        
+//                     case 'privacy':
+//                         const privacyMode = args[2]?.toLowerCase();
+//                         if (!privacyMode || !['owner', 'all', 'none'].includes(privacyMode)) {
+//                             await sock.sendMessage(chatId, {
+//                                 text: `🔒 *Status Privacy*\n\nCurrent: ${tracker.config.statusPrivacy}\n\nOptions:\n• owner - Send to owner DM\n• all - Show in chat\n• none - Don't retrieve\n\nUsage: \`${PREFIX}antidelete status privacy <mode>\``
+//                             }, { quoted: msg });
+//                             return;
+//                         }
+                        
+//                         tracker.config.statusPrivacy = privacyMode;
+//                         await sock.sendMessage(chatId, {
+//                             text: `✅ *Privacy Updated*\n\nMode: ${privacyMode.toUpperCase()}`
+//                         }, { quoted: msg });
+//                         break;
+                        
+//                     case 'clear':
+//                         const statusCount = tracker.statusCache.size;
+//                         const mediaCount = tracker.statusStorage.size;
+//                         const queueCount = tracker.statusViewQueue.size;
+                        
+//                         tracker.statusCache.clear();
+//                         tracker.statusStorage.clear();
+//                         tracker.statusViewQueue.clear();
+//                         tracker.seenStatuses.clear();
+//                         tracker.processedStatusDeletions.clear();
+//                         tracker.statusDmLog.clear();
+                        
+//                         // Clean files
+//                         try {
+//                             const files = await fs.readdir(STATUS_STORAGE_PATH);
+//                             for (const file of files) {
+//                                 await fs.unlink(path.join(STATUS_STORAGE_PATH, file));
+//                             }
+//                         } catch (error) {}
+                        
+//                         await sock.sendMessage(chatId, {
+//                             text: `🧹 *Status Cache Cleared*\n\nStatuses: ${statusCount}\nMedia: ${mediaCount}\nQueue: ${queueCount}`
+//                         }, { quoted: msg });
+//                         break;
+                        
+//                     default:
+//                         await sock.sendMessage(chatId, {
+//                             text: `❓ *Invalid Status Command*\n\nUse \`${PREFIX}antidelete status\` for options.`
+//                         }, { quoted: msg });
+//                 }
 //                 break;
                 
 //             case 'debug':
@@ -1067,159 +1489,257 @@
 //                 console.log('─'.repeat(70));
 //                 console.log(`System: ${tracker.active ? 'ACTIVE' : 'INACTIVE'}`);
 //                 console.log(`Mode: ${tracker.mode}`);
-//                 console.log(`Messages in cache: ${tracker.messageCache.size}`);
-//                 console.log(`Media files: ${tracker.mediaStorage.size}`);
-//                 console.log(`Owner JID: ${getOwnerJid()}`);
-//                 console.log(`Owner number: ${OWNER_NUMBER}`);
-//                 console.log(`Listener setup: ${tracker.listenerSetup}`);
-//                 console.log(`Cleanup interval: ${tracker.cleanupInterval ? 'ACTIVE' : 'INACTIVE'}`);
-//                 console.log(`Last cleanup: ${new Date(tracker.lastCleanup).toLocaleTimeString()}`);
+//                 console.log(`Status capture: ${tracker.config.captureStatuses}`);
+//                 console.log(`Auto-view: ${tracker.config.autoViewStatuses}`);
+//                 console.log(`View delay: ${tracker.config.statusViewDelay}ms`);
+//                 console.log(`Status cache: ${tracker.statusCache.size}`);
+//                 console.log(`Status storage: ${tracker.statusStorage.size}`);
+//                 console.log(`View queue: ${tracker.statusViewQueue.size}`);
+//                 console.log(`Status viewed: ${tracker.stats.statusesViewed}`);
+//                 console.log(`Status downloaded: ${tracker.stats.statusesDownloaded}`);
                 
-//                 // Show recent DMs
-//                 if (tracker.ownerDmLog.size > 0) {
-//                     console.log('\n📨 RECENT OWNER DMs:');
+//                 // Show status view queue
+//                 if (tracker.statusViewQueue.size > 0) {
+//                     console.log('\n📋 STATUS VIEW QUEUE:');
 //                     let index = 1;
-//                     for (const [msgId, log] of tracker.ownerDmLog.entries()) {
-//                         const age = Math.round((Date.now() - log.timestamp) / 1000);
-//                         console.log(`${index}. From: ${log.sender}`);
-//                         console.log(`   Chat: ${log.chat}`);
-//                         console.log(`   Type: ${log.type}, Age: ${age}s`);
-//                         console.log(`   ID: ${msgId.substring(0, 12)}...`);
-//                         console.log('   ─'.repeat(20));
+//                     for (const [jid, data] of tracker.statusViewQueue.entries()) {
+//                         const age = Math.round((Date.now() - data.timestamp) / 1000);
+//                         console.log(`${index}. ${data.phoneNumber}`);
+//                         console.log(`   Attempts: ${data.attempts}, Age: ${age}s`);
 //                         index++;
 //                         if (index > 5) break;
+//                     }
+//                 }
+                
+//                 // Show recent statuses
+//                 if (tracker.statusCache.size > 0) {
+//                     console.log('\n📱 RECENT STATUSES:');
+//                     let index = 1;
+//                     const sortedStatuses = Array.from(tracker.statusCache.entries())
+//                         .sort((a, b) => b[1].timestamp - a[1].timestamp)
+//                         .slice(0, 5);
+                    
+//                     for (const [id, status] of sortedStatuses) {
+//                         const age = Math.round((Date.now() - status.timestamp) / 1000);
+//                         console.log(`${index}. ${status.phoneNumber} (${status.type})`);
+//                         console.log(`   Text: ${status.text?.substring(0, 30) || 'None'}...`);
+//                         console.log(`   Media: ${status.hasMedia ? 'Yes' : 'No'}, Age: ${age}s`);
+//                         console.log(`   ID: ${id.substring(0, 12)}...`);
+//                         index++;
 //                     }
 //                 }
                 
 //                 console.log('─'.repeat(70));
                 
 //                 await sock.sendMessage(chatId, {
-//                     text: `🔧 Debug info sent to terminal\n\nMode: ${tracker.mode}\nMedia files: ${tracker.mediaStorage.size}\nOwner DMs: ${tracker.ownerDmLog.size}`
+//                     text: `🔧 Debug info sent to terminal\n\nStatus viewed: ${tracker.stats.statusesViewed}\nStatus downloaded: ${tracker.stats.statusesDownloaded}\nQueue: ${tracker.statusViewQueue.size}`
 //                 });
 //                 break;
                 
+//             case 'test':
+//                 const testMessage = `
+// ✅ *Antidelete Test*
+
+// System: ${tracker.active ? 'ACTIVE' : 'INACTIVE'}
+// Mode: ${tracker.mode.toUpperCase()}
+// Status Support: ${tracker.config.captureStatuses ? '✅ ENABLED' : '❌ DISABLED'}
+
+// 📊 *Cache Status:*
+// Messages: ${tracker.messageCache.size}
+// Statuses: ${tracker.statusCache.size}
+// Media: ${tracker.mediaStorage.size}
+// Status Media: ${tracker.statusStorage.size}
+
+// 📈 *Stats:*
+// Viewed: ${tracker.stats.statusesViewed}
+// Detected: ${tracker.stats.statusesDetected}
+// Queue: ${tracker.statusViewQueue.size}
+
+// 💡 *Try deleting a message to test!*
+// `;
+                
+//                 await sock.sendMessage(chatId, { text: testMessage }, { quoted: msg });
+//                 break;
+                
 //             case 'clear':
-//             case 'clean':
-//                 if (args[1] === 'dm' && !isOwner(msg)) {
+//                 if (!isOwner(msg)) {
 //                     return sock.sendMessage(chatId, {
-//                         text: `❌ *Owner Only*\n\nOnly the owner can clear DM logs.`
+//                         text: `❌ *Owner Only*\n\nCache can only be cleared by the owner.`
 //                     }, { quoted: msg });
 //                 }
                 
 //                 const msgCount = tracker.messageCache.size;
-//                 const fileCount = tracker.mediaStorage.size;
-//                 const dmCount = tracker.ownerDmLog.size;
-                
-//                 // Clean files
-//                 for (const msgId of tracker.mediaStorage.keys()) {
-//                     await cleanupMedia(msgId);
-//                 }
+//                 const statusCount = tracker.statusCache.size;
+//                 const mediaCount = tracker.mediaStorage.size;
+//                 const statusMediaCount = tracker.statusStorage.size;
                 
 //                 tracker.messageCache.clear();
+//                 tracker.statusCache.clear();
 //                 tracker.mediaStorage.clear();
+//                 tracker.statusStorage.clear();
 //                 tracker.seenMessages.clear();
+//                 tracker.seenStatuses.clear();
 //                 tracker.processedDeletions.clear();
+//                 tracker.processedStatusDeletions.clear();
+//                 tracker.ownerDmLog.clear();
+//                 tracker.statusDmLog.clear();
                 
-//                 if (args[1] === 'dm') {
-//                     tracker.ownerDmLog.clear();
-//                 }
+//                 // Clean files
+//                 try {
+//                     const mediaFiles = await fs.readdir(MEDIA_STORAGE_PATH);
+//                     for (const file of mediaFiles) {
+//                         await fs.unlink(path.join(MEDIA_STORAGE_PATH, file));
+//                     }
+                    
+//                     const statusFiles = await fs.readdir(STATUS_STORAGE_PATH);
+//                     for (const file of statusFiles) {
+//                         await fs.unlink(path.join(STATUS_STORAGE_PATH, file));
+//                     }
+//                 } catch (error) {}
                 
-//                 cleanLog(`Cleaned: ${msgCount} messages, ${fileCount} files${args[1] === 'dm' ? `, ${dmCount} DM logs` : ''}`, 'success');
+//                 cleanLog('Cache cleared', 'system');
                 
 //                 await sock.sendMessage(chatId, {
-//                     text: `🧹 *Cache Cleared*\n\nMessages: ${msgCount}\nFiles: ${fileCount}${args[1] === 'dm' ? `\nDM logs: ${dmCount}` : ''}`
+//                     text: `🧹 *Cache Cleared*\n\nMessages: ${msgCount}\nStatuses: ${statusCount}\nMedia: ${mediaCount}\nStatus Media: ${statusMediaCount}`
 //                 }, { quoted: msg });
 //                 break;
                 
-//             case 'config':
+//             case 'help':
+//             case 'menu':
+//                 const helpText = `
+// 🚫 *ANTIDELETE COMMANDS*
+
+// 📌 *Core Commands:*
+// • \`${PREFIX}antidelete on\` - Enable public mode
+// • \`${PREFIX}antidelete on private\` - Enable private mode (owner only)
+// • \`${PREFIX}antidelete off\` - Disable system
+// • \`${PREFIX}antidelete test\` - Test functionality
+// • \`${PREFIX}antidelete stats\` - View statistics
+
+// 📱 *Status Commands (Owner only):*
+// • \`${PREFIX}antidelete status\` - Status settings
+// • \`${PREFIX}antidelete status on/off\` - Toggle capture
+// • \`${PREFIX}antidelete status view on/off\` - Auto-view
+// • \`${PREFIX}antidelete status fetch <number>\` - Fetch status
+// • \`${PREFIX}antidelete status privacy <owner/all/none>\`
+// • \`${PREFIX}antidelete status clear\` - Clear cache
+
+// 🔧 *Admin Commands (Owner only):*
+// • \`${PREFIX}antidelete debug\` - Debug info
+// • \`${PREFIX}antidelete clear\` - Clear all cache
+// • \`${PREFIX}antidelete stealth on/off\` - Stealth mode
+// • \`${PREFIX}antidelete cleanup <hours>\` - Set cleanup hours
+
+// 📊 *Current Status:*
+// • Active: ${tracker.active ? '✅' : '❌'}
+// • Mode: ${tracker.mode}
+// • Status Capture: ${tracker.config.captureStatuses ? '✅' : '❌'}
+// • Messages cached: ${tracker.messageCache.size}
+// • Statuses cached: ${tracker.statusCache.size}
+// `;
+                
+//                 await sock.sendMessage(chatId, { text: helpText }, { quoted: msg });
+//                 break;
+                
+//             case 'stats':
+//                 const statsText = `
+// 📊 *ANTIDELETE STATISTICS*
+
+// 🔹 *Messages:*
+// Detected: ${tracker.stats.deletionsDetected}
+// Retrieved: ${tracker.stats.retrievedSuccessfully}
+// False positives: ${tracker.stats.falsePositives}
+// Media retrieved: ${tracker.stats.mediaRetrieved}
+// Media sent: ${tracker.stats.mediaSent}
+// Sent to DM: ${tracker.stats.sentToDm}
+// Sent to chat: ${tracker.stats.sentToChat}
+
+// 🔹 *Statuses:*
+// Detected: ${tracker.stats.statusesDetected}
+// Viewed: ${tracker.stats.statusesViewed}
+// Downloaded: ${tracker.stats.statusesDownloaded}
+// Deleted: ${tracker.stats.statusesDeleted}
+// Retrieved: ${tracker.stats.statusesRetrieved}
+
+// 🔹 *Cache:*
+// Messages: ${tracker.messageCache.size}
+// Statuses: ${tracker.statusCache.size}
+// Media files: ${tracker.mediaStorage.size}
+// Status media: ${tracker.statusStorage.size}
+// View queue: ${tracker.statusViewQueue.size}
+
+// 🕒 Last cleanup: ${new Date(tracker.lastCleanup).toLocaleTimeString()}
+// `;
+                
+//                 await sock.sendMessage(chatId, { text: statsText }, { quoted: msg });
+//                 break;
+                
+//             case 'stealth':
 //                 if (!isOwner(msg)) {
 //                     return sock.sendMessage(chatId, {
-//                         text: `❌ *Owner Only*\n\nConfiguration can only be changed by the owner.`
+//                         text: `❌ *Owner Only*\n\nStealth mode can only be changed by the owner.`
 //                     }, { quoted: msg });
 //                 }
                 
-//                 const setting = args[1];
-//                 const value = args[2];
-                
-//                 if (!setting) {
-//                     // Show current config
-//                     let configText = `⚙️ *Antidelete Configuration*\n\n`;
-//                     for (const [key, val] of Object.entries(tracker.config)) {
-//                         configText += `• ${key}: ${val}\n`;
-//                     }
-//                     configText += `\nTo change: \`${PREFIX}antidelete config <key> <value>\``;
-                    
+//                 const stealthMode = args[1]?.toLowerCase();
+//                 if (stealthMode === 'on') {
+//                     tracker.config.stealthMode = true;
+//                     tracker.config.notifyInChat = false;
+//                     tracker.config.logToTerminal = false;
 //                     await sock.sendMessage(chatId, {
-//                         text: configText
+//                         text: `✅ *Stealth Mode ENABLED*\n\nSystem will operate silently.`
 //                     }, { quoted: msg });
-//                     return;
-//                 }
-                
-//                 if (value === undefined) {
+//                 } else if (stealthMode === 'off') {
+//                     tracker.config.stealthMode = false;
+//                     tracker.config.notifyInChat = true;
+//                     tracker.config.logToTerminal = true;
 //                     await sock.sendMessage(chatId, {
-//                         text: `❌ Need value\n\nUsage: \`${PREFIX}antidelete config ${setting} <value>\``
-//                     }, { quoted: msg });
-//                     return;
-//                 }
-                
-//                 // Parse value
-//                 let parsedValue;
-//                 if (value.toLowerCase() === 'true') parsedValue = true;
-//                 else if (value.toLowerCase() === 'false') parsedValue = false;
-//                 else if (!isNaN(value)) parsedValue = Number(value);
-//                 else parsedValue = value;
-                
-//                 if (tracker.config.hasOwnProperty(setting)) {
-//                     tracker.config[setting] = parsedValue;
-                    
-//                     // Special handling
-//                     if (setting === 'autoCleanup' && parsedValue === true) {
-//                         setupCleanupInterval();
-//                     } else if (setting === 'autoCleanup' && parsedValue === false) {
-//                         if (tracker.cleanupInterval) {
-//                             clearInterval(tracker.cleanupInterval);
-//                             tracker.cleanupInterval = null;
-//                         }
-//                     }
-                    
-//                     await sock.sendMessage(chatId, {
-//                         text: `✅ Config updated\n\n${setting}: ${parsedValue}`
+//                         text: `✅ *Stealth Mode DISABLED*\n\nSystem will show notifications.`
 //                     }, { quoted: msg });
 //                 } else {
 //                     await sock.sendMessage(chatId, {
-//                         text: `❌ Invalid setting\n\nAvailable: ${Object.keys(tracker.config).join(', ')}`
+//                         text: `❓ Usage: \`${PREFIX}antidelete stealth on/off\``
 //                     }, { quoted: msg });
 //                 }
 //                 break;
                 
-//             case 'help':
-//                 const helpText = `
-// 🚫 *ANTIDELETE SYSTEM HELP*
-// ⚡ *Commands:*
-// • \`${PREFIX}antidelete on [private/public]\`
-// • \`${PREFIX}antidelete off\`
-// • \`${PREFIX}antidelete mode <public/private>\`
-
-// 👑 *Owner:* ${OWNER_NUMBER || 'Not set'}
-// `.trim();
+//             case 'cleanup':
+//                 if (!isOwner(msg)) {
+//                     return sock.sendMessage(chatId, {
+//                         text: `❌ *Owner Only*\n\nCleanup settings can only be changed by the owner.`
+//                     }, { quoted: msg });
+//                 }
                 
+//                 const hours = parseInt(args[1]);
+//                 if (!hours || hours < 1) {
+//                     await sock.sendMessage(chatId, {
+//                         text: `🧹 *Cleanup Settings*\n\nCurrent: ${tracker.config.maxStorageHours} hours\nAuto-cleanup: ${tracker.config.autoCleanup ? '✅ ON' : '❌ OFF'}\n\nUsage: \`${PREFIX}antidelete cleanup <hours>\``
+//                     }, { quoted: msg });
+//                     return;
+//                 }
+                
+//                 tracker.config.maxStorageHours = hours;
 //                 await sock.sendMessage(chatId, {
-//                     text: helpText
+//                     text: `✅ *Cleanup Updated*\n\nFiles older than ${hours} hours will be automatically cleaned.`
 //                 }, { quoted: msg });
 //                 break;
                 
 //             default:
-//                 const downloaded = tracker.stats.mediaDownloaded;
-//                 const sent = tracker.stats.mediaSent;
-//                 const rate = downloaded > 0 ? Math.round((sent / downloaded) * 100) : 0;
+//                 const statusSummary = tracker.config.captureStatuses ? 
+//                     `📱 Status: ✅ ON (Viewed: ${tracker.stats.statusesViewed})` : 
+//                     `📱 Status: ❌ OFF`;
                 
-//                 const statusText = `
+//                 const defaultResponse = `
 // 🚫 *Antidelete System*
 
 // Status: ${tracker.active ? '✅ ACTIVE' : '❌ INACTIVE'}
 // Mode: ${tracker.mode.toUpperCase()}
+// ${statusSummary}
+
+// 📊 *Performance:*
+// Messages cached: ${tracker.messageCache.size}
+// Statuses cached: ${tracker.statusCache.size}
 // Media files: ${tracker.mediaStorage.size}
-// Success rate: ${rate}%
 
 // ${tracker.mode === 'private' ? 
 // `🔒 *Private Mode Active*
@@ -1229,12 +1749,11 @@
 
 // Owner: ${OWNER_NUMBER || 'Not set'}
 
-// Use \`${PREFIX}antidelete on\` to enable
 // Use \`${PREFIX}antidelete help\` for all commands
 // `.trim();
                 
 //                 await sock.sendMessage(chatId, {
-//                     text: statusText
+//                     text: defaultResponse
 //                 }, { quoted: msg });
 //         }
 //     }
@@ -1265,7 +1784,13 @@
 
 
 
-// File: ./commands/utility/antidelete.js - UPDATED WITH STATUS VIEWING
+
+
+
+
+
+
+// File: ./commands/utility/antidelete.js - OWNER ONLY & BACKGROUND PROCESS
 import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -1300,7 +1825,7 @@ async function loadOwnerInfo() {
                     OWNER_NUMBER = ownerData.OWNER_NUMBER || ownerData.ownerNumber;
                     
                     if (OWNER_JID) {
-                        console.log(`👑 Owner loaded: ${OWNER_NUMBER} (${OWNER_JID})`);
+                        console.log(`👑 Antidelete: Owner loaded: ${OWNER_NUMBER}`);
                         break;
                     }
                 }
@@ -1309,23 +1834,110 @@ async function loadOwnerInfo() {
             }
         }
     } catch (error) {
-        console.error('❌ Error loading owner info:', error.message);
+        console.error('❌ Antidelete: Error loading owner info:', error.message);
     }
 }
 
 // Call on import
 loadOwnerInfo();
 
+// Background process manager
+class BackgroundProcess {
+    constructor() {
+        this.active = false;
+        this.logs = [];
+        this.maxLogs = 100;
+        this.lastActivity = Date.now();
+    }
+
+    log(message, type = 'info') {
+        const timestamp = new Date().toLocaleTimeString();
+        const logEntry = `[${timestamp}] ${message}`;
+        
+        // Store log
+        this.logs.push({ timestamp: Date.now(), message: logEntry, type });
+        if (this.logs.length > this.maxLogs) {
+            this.logs.shift();
+        }
+        
+        // Only show errors in terminal by default
+        if (type === 'error') {
+            console.error(`❌ Antidelete: ${message}`);
+        } else if (type === 'system') {
+            console.log(`🔧 Antidelete: ${message}`);
+        } else if (type === 'start') {
+            console.log(`🚀 Antidelete: ${message}`);
+        } else if (type === 'stop') {
+            console.log(`🛑 Antidelete: ${message}`);
+        }
+        
+        this.lastActivity = Date.now();
+    }
+
+    getRecentLogs(count = 10) {
+        return this.logs.slice(-count).map(log => log.message).join('\n');
+    }
+
+    getStats() {
+        const errors = this.logs.filter(log => log.type === 'error').length;
+        const warnings = this.logs.filter(log => log.type === 'warning').length;
+        const infos = this.logs.filter(log => log.type === 'info').length;
+        
+        return {
+            totalLogs: this.logs.length,
+            errors,
+            warnings,
+            infos,
+            lastActivity: new Date(this.lastActivity).toLocaleString(),
+            uptime: this.active ? Date.now() - this.lastActivity : 0
+        };
+    }
+}
+
+// Global background process
+if (!global.antideleteBackground) {
+    global.antideleteBackground = new BackgroundProcess();
+}
+
 export default {
     name: 'antidelete',
     alias: ['undelete', 'antidel', 'ad'],
-    description: 'Capture deleted messages and statuses with public/private modes',
-    category: 'utility',
+    description: 'OWNER ONLY - Capture deleted messages and statuses in background',
+    category: 'owner',
     
     async execute(sock, msg, args, PREFIX, metadata = {}) {
         const chatId = msg.key.remoteJid;
+        const bg = global.antideleteBackground;
         
-        console.log('🚫 Antidelete System - Now with Status Support');
+        // Check if sender is owner
+        const isOwner = (() => {
+            if (msg.key.fromMe) return true;
+            
+            const senderJid = msg.key.participant || msg.key.remoteJid;
+            const cleanNumber = senderJid.split('@')[0]?.split(':')[0];
+            
+            if (OWNER_NUMBER && cleanNumber === OWNER_NUMBER) return true;
+            if (!OWNER_JID && !OWNER_NUMBER) {
+                console.error('⚠️ Antidelete: Owner not configured');
+                return false;
+            }
+            
+            return false;
+        })();
+        
+        // Reject if not owner
+        if (!isOwner) {
+            return sock.sendMessage(chatId, {
+                text: `❌ *OWNER ONLY COMMAND*\n\nThis command is restricted to the bot owner.\n\nOwner: ${OWNER_NUMBER || 'Not configured'}`
+            }, { quoted: msg });
+        }
+        
+        bg.log('Command received from owner', 'system');
+        
+        // Get owner JID
+        function getOwnerJid() {
+            return OWNER_JID || (OWNER_NUMBER ? `${OWNER_NUMBER}@s.whatsapp.net` : null);
+        }
         
         // Extract jidManager if available
         const jidManager = metadata.jidManager || {
@@ -1339,28 +1951,18 @@ export default {
                     isLid: clean.includes('@lid'),
                     original: jid
                 };
-            },
-            isOwner: (msg) => {
-                const senderJid = msg.key.participant || msg.key.remoteJid;
-                const cleaned = this.cleanJid(senderJid);
-                return cleaned.cleanNumber === OWNER_NUMBER || msg.key.fromMe;
-            },
-            getOwnerInfo: () => ({
-                cleanJid: OWNER_JID || 'Not configured',
-                cleanNumber: OWNER_NUMBER || 'Not configured',
-                isLid: OWNER_JID ? OWNER_JID.includes('@lid') : false
-            })
+            }
         };
         
         // Initialize global tracker
         if (!global.antideleteTerminal) {
             global.antideleteTerminal = {
                 active: false,
-                mode: 'public',
+                mode: 'private', // Default to private for owner
                 messageCache: new Map(),
                 statusCache: new Map(),
                 listenerSetup: false,
-                notifyInChat: true,
+                notifyInChat: false, // Don't notify in chat by default
                 stats: {
                     deletionsDetected: 0,
                     retrievedSuccessfully: 0,
@@ -1373,7 +1975,7 @@ export default {
                     statusesDetected: 0,
                     statusesDeleted: 0,
                     statusesRetrieved: 0,
-                    statusesViewed: 0, // New: Track viewed statuses
+                    statusesViewed: 0,
                     statusesDownloaded: 0
                 },
                 seenMessages: new Map(),
@@ -1389,15 +1991,15 @@ export default {
                 config: {
                     autoCleanup: true,
                     maxStorageHours: 24,
-                    notifyOnModeChange: true,
-                    stealthMode: false,
-                    logToTerminal: true,
+                    notifyOnModeChange: false,
+                    stealthMode: true, // Stealth mode enabled by default
+                    logToTerminal: false, // Don't log to terminal by default
                     captureStatuses: true,
                     statusPrivacy: 'owner',
-                    autoViewStatuses: true, // New: Auto view statuses
-                    statusViewDelay: 2000 // New: Delay before viewing status (ms)
+                    autoViewStatuses: true,
+                    statusViewDelay: 2000,
+                    backgroundMode: true // Run in background
                 },
-                // New: Status viewing queue
                 statusViewQueue: new Map(),
                 statusViewInterval: null
             };
@@ -1406,7 +2008,306 @@ export default {
         const tracker = global.antideleteTerminal;
         const command = args[0]?.toLowerCase() || 'help';
         
-        // ====== STATUS VIEWING FUNCTIONS ======
+        // ====== UTILITY FUNCTIONS ======
+        
+        // Log messages to background process
+        function backgroundLog(message, type = 'info') {
+            bg.log(message, type);
+        }
+        
+        // Ensure media directory
+        async function ensureMediaDir() {
+            try {
+                await fs.mkdir(MEDIA_STORAGE_PATH, { recursive: true });
+                await fs.mkdir(STATUS_STORAGE_PATH, { recursive: true });
+                return true;
+            } catch (error) {
+                backgroundLog(`Directory error: ${error.message}`, 'error');
+                return false;
+            }
+        }
+        
+        // ====== MESSAGE STORAGE FUNCTIONS ======
+        
+        // Store message with media
+        async function storeMessageWithMedia(message) {
+            try {
+                if (!tracker.active) return;
+                
+                const msgId = message.key?.id;
+                if (!msgId) return;
+                
+                // Skip if already cached
+                if (tracker.messageCache.has(msgId)) return;
+                
+                const chatJid = message.key.remoteJid;
+                const senderJid = message.key.participant || chatJid;
+                const pushName = message.pushName || 'Unknown';
+                const timestamp = message.messageTimestamp * 1000 || Date.now();
+                
+                // Extract message content
+                const msgContent = message.message;
+                let text = '';
+                let type = 'text';
+                let hasMedia = false;
+                let mimetype = '';
+                let caption = '';
+                
+                if (msgContent?.conversation) {
+                    text = msgContent.conversation;
+                } else if (msgContent?.extendedTextMessage?.text) {
+                    text = msgContent.extendedTextMessage.text;
+                } else if (msgContent?.imageMessage) {
+                    type = 'image';
+                    text = msgContent.imageMessage.caption || '';
+                    mimetype = msgContent.imageMessage.mimetype || 'image/jpeg';
+                    hasMedia = true;
+                    caption = text;
+                } else if (msgContent?.videoMessage) {
+                    type = 'video';
+                    text = msgContent.videoMessage.caption || '';
+                    mimetype = msgContent.videoMessage.mimetype || 'video/mp4';
+                    hasMedia = true;
+                    caption = text;
+                } else if (msgContent?.audioMessage) {
+                    type = 'audio';
+                    mimetype = msgContent.audioMessage.mimetype || 'audio/mpeg';
+                    hasMedia = true;
+                } else if (msgContent?.documentMessage) {
+                    type = 'document';
+                    text = msgContent.documentMessage.fileName || 'Document';
+                    mimetype = msgContent.documentMessage.mimetype || 'application/octet-stream';
+                    hasMedia = true;
+                } else if (msgContent?.stickerMessage) {
+                    type = 'sticker';
+                    mimetype = msgContent.stickerMessage.mimetype || 'image/webp';
+                    hasMedia = true;
+                }
+                
+                // Store message in cache
+                const messageData = {
+                    id: msgId,
+                    chatJid: chatJid,
+                    senderJid: senderJid,
+                    pushName: pushName,
+                    timestamp: timestamp,
+                    type: type,
+                    text: text,
+                    caption: caption,
+                    hasMedia: hasMedia,
+                    mimetype: mimetype,
+                    rawMessage: message
+                };
+                
+                tracker.messageCache.set(msgId, messageData);
+                backgroundLog(`Stored message from ${pushName} (${type})`, 'info');
+                
+                // Download media if present
+                if (hasMedia) {
+                    setTimeout(async () => {
+                        try {
+                            await downloadAndSaveMedia(msgId, messageData, message);
+                        } catch (error) {
+                            backgroundLog(`Media download failed: ${error.message}`, 'error');
+                        }
+                    }, 500);
+                }
+                
+                return messageData;
+                
+            } catch (error) {
+                backgroundLog(`Message storage error: ${error.message}`, 'error');
+                return null;
+            }
+        }
+        
+        // Download and save media
+        async function downloadAndSaveMedia(msgId, messageData, originalMessage) {
+            try {
+                if (!messageData.hasMedia) return false;
+                
+                backgroundLog(`Downloading ${messageData.type} media...`, 'info');
+                
+                const buffer = await downloadMediaMessage(
+                    originalMessage,
+                    'buffer',
+                    {},
+                    {
+                        logger: { level: 'silent' },
+                        reuploadRequest: sock.updateMediaMessage
+                    }
+                );
+                
+                if (!buffer || buffer.length === 0) {
+                    backgroundLog('Empty buffer for media', 'warning');
+                    return false;
+                }
+                
+                // Save to file
+                await ensureMediaDir();
+                const timestamp = Date.now();
+                let extension = '.bin';
+                
+                if (messageData.type === 'image') extension = '.jpg';
+                else if (messageData.type === 'video') extension = '.mp4';
+                else if (messageData.type === 'audio') extension = '.mp3';
+                else if (messageData.type === 'sticker') extension = '.webp';
+                else if (messageData.mimetype.includes('pdf')) extension = '.pdf';
+                else if (messageData.mimetype.includes('document')) extension = '.bin';
+                
+                const filename = `${messageData.type}_${timestamp}${extension}`;
+                const filePath = path.join(MEDIA_STORAGE_PATH, filename);
+                
+                await fs.writeFile(filePath, buffer);
+                
+                // Store in media storage
+                tracker.mediaStorage.set(msgId, {
+                    filePath: filePath,
+                    buffer: buffer,
+                    type: messageData.type,
+                    mimetype: messageData.mimetype,
+                    filename: filename,
+                    size: buffer.length,
+                    timestamp: timestamp
+                });
+                
+                tracker.stats.mediaDownloaded++;
+                backgroundLog(`Media saved: ${filename} (${Math.round(buffer.length/1024)}KB)`, 'success');
+                return true;
+                
+            } catch (error) {
+                backgroundLog(`Media download error: ${error.message}`, 'error');
+                return false;
+            }
+        }
+        
+        // ====== DELETION HANDLING ======
+        
+        // Handle deleted message
+        async function handleDeletedMessage(messageKey) {
+            try {
+                const msgId = messageKey.id;
+                const chatJid = messageKey.remoteJid;
+                
+                // Skip if already processed
+                if (tracker.processedDeletions.has(msgId)) return;
+                tracker.processedDeletions.add(msgId);
+                
+                backgroundLog(`Deletion detected in ${chatJid}`, 'info');
+                tracker.stats.deletionsDetected++;
+                
+                // Get cached message
+                const cachedMessage = tracker.messageCache.get(msgId);
+                if (!cachedMessage) {
+                    backgroundLog(`Message not found in cache`, 'warning');
+                    tracker.stats.falsePositives++;
+                    return;
+                }
+                
+                // Remove from cache
+                tracker.messageCache.delete(msgId);
+                
+                // Always send to owner in private mode
+                await sendDeletedMessageToOwnerDM(cachedMessage);
+                
+                tracker.stats.retrievedSuccessfully++;
+                
+            } catch (error) {
+                backgroundLog(`Deletion handling error: ${error.message}`, 'error');
+            }
+        }
+        
+        // Send deleted message to owner DM
+        async function sendDeletedMessageToOwnerDM(messageData) {
+            try {
+                const ownerJid = getOwnerJid();
+                if (!ownerJid) {
+                    backgroundLog('Owner JID not found', 'error');
+                    return false;
+                }
+                
+                const time = new Date(messageData.timestamp).toLocaleString();
+                const senderNumber = jidManager.cleanJid(messageData.senderJid).cleanNumber;
+                const chatNumber = jidManager.cleanJid(messageData.chatJid).cleanNumber;
+                
+                let messageText = `🗑️ *DELETED MESSAGE*\n\n`;
+                messageText += `👤 From: ${senderNumber} (${messageData.pushName})\n`;
+                messageText += `💬 Chat: ${chatNumber}\n`;
+                messageText += `🕒 Time: ${time}\n`;
+                messageText += `📝 Type: ${messageData.type.toUpperCase()}\n`;
+                
+                if (messageData.text) {
+                    messageText += `\n📋 Content:\n${messageData.text.substring(0, 500)}`;
+                    if (messageData.text.length > 500) messageText += '...';
+                }
+                
+                messageText += `\n\n────────────\n`;
+                messageText += `🔍 *Captured by antidelete*`;
+                
+                // Check if we have media
+                const mediaInfo = tracker.mediaStorage.get(messageData.id);
+                
+                if (messageData.hasMedia && mediaInfo) {
+                    let buffer = mediaInfo.buffer;
+                    if (!buffer) {
+                        buffer = await fs.readFile(mediaInfo.filePath);
+                    }
+                    
+                    if (buffer && buffer.length > 0) {
+                        if (messageData.type === 'image') {
+                            await sock.sendMessage(ownerJid, {
+                                image: buffer,
+                                caption: messageText,
+                                mimetype: mediaInfo.mimetype
+                            });
+                        } else if (messageData.type === 'video') {
+                            await sock.sendMessage(ownerJid, {
+                                video: buffer,
+                                caption: messageText,
+                                mimetype: mediaInfo.mimetype
+                            });
+                        } else if (messageData.type === 'audio') {
+                            await sock.sendMessage(ownerJid, {
+                                audio: buffer,
+                                mimetype: mediaInfo.mimetype
+                            });
+                        } else if (messageData.type === 'sticker') {
+                            await sock.sendMessage(ownerJid, {
+                                sticker: buffer,
+                                mimetype: mediaInfo.mimetype
+                            });
+                        } else {
+                            await sock.sendMessage(ownerJid, {
+                                text: messageText + `\n\n📎 Media: ${messageData.type} (${Math.round(mediaInfo.size/1024)}KB)`
+                            });
+                        }
+                        tracker.stats.mediaSent++;
+                    } else {
+                        await sock.sendMessage(ownerJid, { text: messageText });
+                    }
+                } else {
+                    await sock.sendMessage(ownerJid, { text: messageText });
+                }
+                
+                tracker.ownerDmLog.set(messageData.id, {
+                    timestamp: Date.now(),
+                    sender: senderNumber,
+                    chat: chatNumber,
+                    type: messageData.type,
+                    hasMedia: messageData.hasMedia
+                });
+                
+                tracker.stats.sentToDm++;
+                backgroundLog(`Deleted message sent to owner: ${senderNumber} → ${chatNumber}`, 'info');
+                return true;
+                
+            } catch (error) {
+                backgroundLog(`DM error: ${error.message}`, 'error');
+                return false;
+            }
+        }
+        
+        // ====== STATUS HANDLING FUNCTIONS ======
         
         // Fetch and view status
         async function fetchAndViewStatus(statusJid) {
@@ -1414,114 +2315,31 @@ export default {
                 if (!tracker.config.autoViewStatuses) return;
                 
                 const phoneNumber = statusJid.split('@')[0];
-                cleanLog(`Fetching status for: ${phoneNumber}`, 'status');
+                backgroundLog(`Fetching status for: ${phoneNumber}`, 'info');
                 
-                // Send status read receipt
                 try {
-                    const statusReadMessage = {
-                        key: {
-                            remoteJid: 'status@broadcast',
-                            fromMe: true,
-                            id: `status_read_${Date.now()}`
-                        },
-                        message: {
-                            protocolMessage: {
-                                type: proto.Message.ProtocolMessage.Type.READ_STATUS,
-                                key: {
-                                    remoteJid: statusJid,
-                                    fromMe: false
-                                }
-                            }
-                        }
-                    };
+                    const statusResult = await sock.fetchStatus(statusJid);
                     
-                    await sock.relayMessage('status@broadcast', statusReadMessage.message, {
-                        messageId: statusReadMessage.key.id
-                    });
-                    
-                    cleanLog(`Sent status read receipt for: ${phoneNumber}`, 'status');
-                    tracker.stats.statusesViewed++;
-                } catch (readError) {
-                    cleanLog(`Status read error: ${readError.message}`, 'error');
-                }
-                
-                // Try to fetch status list
-                try {
-                    // This attempts to fetch the status list
-                    const query = ['query', { type: 'status', epoch: '1' }, null];
-                    await sock.query(query);
-                    cleanLog(`Status query sent for: ${phoneNumber}`, 'status');
-                } catch (queryError) {
-                    cleanLog(`Status query error: ${queryError.message}`, 'error');
-                }
-                
-                // Store in queue for later processing
-                tracker.statusViewQueue.set(statusJid, {
-                    timestamp: Date.now(),
-                    phoneNumber: phoneNumber,
-                    attempts: 1
-                });
-                
-            } catch (error) {
-                cleanLog(`Status fetch error: ${error.message}`, 'error');
-            }
-        }
-        
-        // Process status view queue
-        async function processStatusViewQueue() {
-            try {
-                const now = Date.now();
-                const maxAge = 5 * 60 * 1000; // 5 minutes
-                
-                for (const [jid, data] of tracker.statusViewQueue.entries()) {
-                    if (now - data.timestamp > maxAge) {
-                        tracker.statusViewQueue.delete(jid);
-                        continue;
-                    }
-                    
-                    // Try to fetch status after delay
-                    if (data.attempts < 3) {
-                        setTimeout(async () => {
-                            try {
-                                await fetchStatusContent(jid);
-                            } catch (error) {
-                                cleanLog(`Queue process error: ${error.message}`, 'error');
-                            }
-                        }, data.attempts * 3000); // Incremental delay
+                    if (statusResult && statusResult.length > 0) {
+                        backgroundLog(`Found ${statusResult.length} status messages`, 'success');
                         
-                        data.attempts++;
-                        tracker.statusViewQueue.set(jid, data);
+                        for (const statusMsg of statusResult) {
+                            await storeStatusFromMessage(statusJid, statusMsg);
+                        }
+                        
+                        tracker.stats.statusesViewed++;
+                        return true;
+                    } else {
+                        backgroundLog(`No status messages found`, 'warning');
+                        return false;
                     }
-                }
-            } catch (error) {
-                cleanLog(`Queue processing error: ${error.message}`, 'error');
-            }
-        }
-        
-        // Fetch status content
-        async function fetchStatusContent(statusJid) {
-            try {
-                const phoneNumber = statusJid.split('@')[0];
-                cleanLog(`Attempting to fetch status content for: ${phoneNumber}`, 'status');
-                
-                // Try to get status messages
-                const statusMessages = await sock.fetchStatus(statusJid);
-                
-                if (statusMessages && statusMessages.length > 0) {
-                    cleanLog(`Found ${statusMessages.length} status messages for ${phoneNumber}`, 'success');
-                    
-                    for (const statusMsg of statusMessages) {
-                        await storeStatusFromMessage(statusJid, statusMsg);
-                    }
-                    
-                    return true;
-                } else {
-                    cleanLog(`No status messages found for ${phoneNumber}`, 'warning');
+                } catch (queryError) {
+                    backgroundLog(`Status query error: ${queryError.message}`, 'error');
                     return false;
                 }
                 
             } catch (error) {
-                cleanLog(`Status content fetch error: ${error.message}`, 'error');
+                backgroundLog(`Status fetch error: ${error.message}`, 'error');
                 return false;
             }
         }
@@ -1545,7 +2363,7 @@ export default {
                     text: '',
                     mediaInfo: null,
                     metadata: {},
-                    fetched: true // Mark as actively fetched
+                    fetched: true
                 };
                 
                 // Extract status content
@@ -1588,7 +2406,7 @@ export default {
                 tracker.statusCache.set(statusId, statusDetails);
                 tracker.stats.statusesDetected++;
                 
-                cleanLog(`Stored status ${statusDetails.type} from ${phoneNumber}`, 'status');
+                backgroundLog(`Stored status ${statusDetails.type} from ${phoneNumber}`, 'info');
                 
                 // Download media if present
                 if (statusDetails.hasMedia && statusDetails.mediaInfo) {
@@ -1596,69 +2414,13 @@ export default {
                         try {
                             await downloadAndSaveStatusMedia(statusId, statusDetails);
                         } catch (error) {
-                            cleanLog(`Status media download failed: ${error.message}`, 'error');
+                            backgroundLog(`Status media download failed: ${error.message}`, 'error');
                         }
                     }, 1000);
                 }
                 
             } catch (error) {
-                cleanLog(`Status storage error: ${error.message}`, 'error');
-            }
-        }
-        
-        // ====== STATUS DETECTION FUNCTIONS ======
-        
-        // Detect and store statuses from updates
-        async function storeStatusUpdate(statusUpdate) {
-            try {
-                if (!tracker.config.captureStatuses) return;
-                
-                const statusData = statusUpdate.status;
-                if (!statusData) return;
-                
-                const statusJid = statusUpdate.jid;
-                const phoneNumber = statusJid.split('@')[0];
-                
-                cleanLog(`Status update detected from: ${phoneNumber}`, 'status');
-                
-                // Auto-view status if enabled
-                if (tracker.config.autoViewStatuses) {
-                    setTimeout(async () => {
-                        await fetchAndViewStatus(statusJid);
-                    }, tracker.config.statusViewDelay);
-                }
-                
-                // Create status entry
-                const statusId = `status_${Date.now()}_${phoneNumber}`;
-                
-                const statusDetails = {
-                    id: statusId,
-                    jid: statusJid,
-                    timestamp: Date.now(),
-                    phoneNumber: phoneNumber,
-                    type: 'unknown',
-                    hasMedia: false,
-                    text: '',
-                    metadata: statusUpdate,
-                    autoViewed: tracker.config.autoViewStatuses
-                };
-                
-                tracker.statusCache.set(statusId, statusDetails);
-                tracker.stats.statusesDetected++;
-                
-                // Try to fetch content after delay
-                if (tracker.config.autoViewStatuses) {
-                    setTimeout(async () => {
-                        try {
-                            await fetchStatusContent(statusJid);
-                        } catch (error) {
-                            cleanLog(`Auto-fetch failed: ${error.message}`, 'error');
-                        }
-                    }, tracker.config.statusViewDelay + 1000);
-                }
-                
-            } catch (error) {
-                cleanLog(`Status update storage error: ${error.message}`, 'error');
+                backgroundLog(`Status storage error: ${error.message}`, 'error');
             }
         }
         
@@ -1667,7 +2429,8 @@ export default {
             try {
                 if (!statusDetails.mediaInfo) return false;
                 
-                cleanLog(`Downloading status media for ${phoneNumber}...`, 'status');
+                const phoneNumber = statusDetails.phoneNumber;
+                backgroundLog(`Downloading status media for ${phoneNumber}...`, 'info');
                 
                 const buffer = await downloadMediaMessage(
                     statusDetails.mediaInfo.message,
@@ -1680,7 +2443,7 @@ export default {
                 );
                 
                 if (!buffer || buffer.length === 0) {
-                    cleanLog('Empty buffer for status media', 'warning');
+                    backgroundLog('Empty buffer for status media', 'warning');
                     return false;
                 }
                 
@@ -1688,7 +2451,7 @@ export default {
                 await ensureMediaDir();
                 const timestamp = Date.now();
                 const extension = statusDetails.type === 'video' ? '.mp4' : '.jpg';
-                const filename = `status_${statusDetails.phoneNumber}_${timestamp}${extension}`;
+                const filename = `status_${phoneNumber}_${timestamp}${extension}`;
                 const filePath = path.join(STATUS_STORAGE_PATH, filename);
                 
                 await fs.writeFile(filePath, buffer);
@@ -1703,74 +2466,15 @@ export default {
                     size: buffer.length,
                     timestamp: timestamp,
                     jid: statusDetails.jid,
-                    phoneNumber: statusDetails.phoneNumber
+                    phoneNumber: phoneNumber
                 });
                 
                 tracker.stats.statusesDownloaded++;
-                cleanLog(`Status media saved: ${filename} (${Math.round(buffer.length/1024)}KB)`, 'success');
+                backgroundLog(`Status media saved: ${filename}`, 'success');
                 return true;
                 
             } catch (error) {
-                cleanLog(`Status download error: ${error.message}`, 'error');
-                return false;
-            }
-        }
-        
-        // ====== EXISTING FUNCTIONS ======
-        
-        // Check if sender is owner
-        function isOwner(msg) {
-            if (!msg) return false;
-            if (msg.key.fromMe) return true;
-            
-            const senderJid = msg.key.participant || msg.key.remoteJid;
-            const cleaned = jidManager.cleanJid(senderJid);
-            
-            if (OWNER_NUMBER && cleaned.cleanNumber === OWNER_NUMBER) return true;
-            if (jidManager.isOwner) return jidManager.isOwner(msg);
-            
-            return false;
-        }
-        
-        // Get owner JID
-        function getOwnerJid() {
-            if (OWNER_JID) return OWNER_JID;
-            if (jidManager.getOwnerInfo) {
-                const info = jidManager.getOwnerInfo();
-                return info.cleanJid !== 'Not configured' ? info.cleanJid : null;
-            }
-            return null;
-        }
-        
-        // Log messages
-        function cleanLog(message, type = 'info') {
-            if (!tracker.config.logToTerminal) return;
-            
-            const prefixes = {
-                'info': '📝',
-                'success': '✅',
-                'error': '❌',
-                'warning': '⚠️',
-                'system': '🚫',
-                'media': '📷',
-                'deletion': '🗑️',
-                'dm': '📨',
-                'mode': '🔄',
-                'status': '📱'
-            };
-            
-            const prefix = prefixes[type] || '📝';
-            console.log(`${prefix} Antidelete: ${message}`);
-        }
-        
-        // Ensure media directory
-        async function ensureMediaDir() {
-            try {
-                await fs.mkdir(MEDIA_STORAGE_PATH, { recursive: true });
-                await fs.mkdir(STATUS_STORAGE_PATH, { recursive: true });
-                return true;
-            } catch (error) {
-                cleanLog(`Directory error: ${error.message}`, 'error');
+                backgroundLog(`Status download error: ${error.message}`, 'error');
                 return false;
             }
         }
@@ -1780,34 +2484,21 @@ export default {
             try {
                 if (!tracker.config.captureStatuses) return;
                 
-                cleanLog(`Status deletion detected: ${deletedStatusId}`, 'status');
+                backgroundLog(`Status deletion detected`, 'info');
                 tracker.stats.statusesDeleted++;
                 
                 const cachedStatus = tracker.statusCache.get(deletedStatusId);
                 if (!cachedStatus) {
-                    cleanLog(`Status not found in cache: ${deletedStatusId}`, 'warning');
+                    backgroundLog(`Status not found in cache`, 'warning');
                     return;
                 }
                 
                 tracker.statusCache.delete(deletedStatusId);
-                
-                const privacy = tracker.config.statusPrivacy;
-                const ownerJid = getOwnerJid();
-                
-                if (privacy === 'none') return;
-                
-                if (privacy === 'owner' && ownerJid) {
-                    await sendStatusToOwnerDM(cachedStatus);
-                } else if (privacy === 'all') {
-                    if (ownerJid) {
-                        await sendStatusToOwnerDM(cachedStatus);
-                    }
-                }
-                
+                await sendStatusToOwnerDM(cachedStatus);
                 tracker.stats.statusesRetrieved++;
                 
             } catch (error) {
-                cleanLog(`Status retrieval error: ${error.message}`, 'error');
+                backgroundLog(`Status retrieval error: ${error.message}`, 'error');
             }
         }
         
@@ -1816,7 +2507,7 @@ export default {
             try {
                 const ownerJid = getOwnerJid();
                 if (!ownerJid) {
-                    cleanLog('Owner JID not found for status DM', 'error');
+                    backgroundLog('Owner JID not found for status DM', 'error');
                     return false;
                 }
                 
@@ -1824,7 +2515,7 @@ export default {
                 const time = new Date(statusDetails.timestamp).toLocaleString();
                 const senderNumber = statusDetails.phoneNumber;
                 
-                let caption = `📱 *DELETED STATUS CAPTURED*\n\n`;
+                let caption = `📱 *DELETED STATUS*\n\n`;
                 caption += `👤 From: ${senderNumber}\n`;
                 caption += `🕒 Posted: ${time}\n`;
                 caption += `📊 Type: ${statusDetails.hasMedia ? statusDetails.type.toUpperCase() : 'TEXT'}\n`;
@@ -1839,7 +2530,7 @@ export default {
                 }
                 
                 caption += `\n\n────────────\n`;
-                caption += `🔍 *Captured by antidelete status monitor*`;
+                caption += `🔍 *Captured by antidelete*`;
                 
                 if (statusDetails.hasMedia && statusMedia) {
                     try {
@@ -1866,7 +2557,7 @@ export default {
                             await sock.sendMessage(ownerJid, { text: caption });
                         }
                     } catch (mediaError) {
-                        cleanLog(`Status media send error: ${mediaError.message}`, 'error');
+                        backgroundLog(`Status media send error: ${mediaError.message}`, 'error');
                         await sock.sendMessage(ownerJid, { text: caption });
                     }
                 } else {
@@ -1880,27 +2571,16 @@ export default {
                     hasMedia: statusDetails.hasMedia
                 });
                 
-                cleanLog(`Status sent to owner DM: ${senderNumber}`, 'status');
+                backgroundLog(`Status sent to owner: ${senderNumber}`, 'info');
                 return true;
                 
             } catch (error) {
-                cleanLog(`Status DM error: ${error.message}`, 'error');
+                backgroundLog(`Status DM error: ${error.message}`, 'error');
                 return false;
             }
         }
         
-        // Setup status viewing interval
-        function setupStatusViewInterval() {
-            if (tracker.statusViewInterval) {
-                clearInterval(tracker.statusViewInterval);
-            }
-            
-            tracker.statusViewInterval = setInterval(async () => {
-                await processStatusViewQueue();
-            }, 10 * 1000); // Process queue every 10 seconds
-        }
-        
-        // Setup cleanup
+        // Setup cleanup interval
         function setupCleanupInterval() {
             if (tracker.cleanupInterval) {
                 clearInterval(tracker.cleanupInterval);
@@ -1945,6 +2625,7 @@ export default {
             }
             
             tracker.lastCleanup = now;
+            backgroundLog(`Cleanup completed`, 'system');
         }
         
         // Clean up status media
@@ -1973,15 +2654,14 @@ export default {
             } catch (error) {}
         }
         
-        // Setup listener
-        function setupTerminalListener() {
+        // Setup listener (background mode)
+        function setupBackgroundListener() {
             if (tracker.listenerSetup) return;
             
-            cleanLog(`Setting up antidelete with status support in ${tracker.mode} mode...`, 'system');
+            backgroundLog(`Starting background listener in stealth mode...`, 'start');
             
             ensureMediaDir();
             setupCleanupInterval();
-            setupStatusViewInterval();
             
             // Store regular messages
             sock.ev.on('messages.upsert', async ({ messages, type }) => {
@@ -1995,9 +2675,7 @@ export default {
                             // Check if it's a status message
                             const chatId = message.key.remoteJid;
                             if (chatId === 'status@broadcast') {
-                                cleanLog(`Broadcast status detected`, 'status');
-                                // This is a status message
-                                await storeStatusFromBroadcast(message);
+                                backgroundLog(`Broadcast status detected`, 'info');
                                 continue;
                             }
                             
@@ -2009,82 +2687,9 @@ export default {
                         }
                     }
                 } catch (error) {
-                    cleanLog(`Storage error: ${error.message}`, 'error');
+                    backgroundLog(`Storage error: ${error.message}`, 'error');
                 }
             });
-            
-            // Store status from broadcast
-            async function storeStatusFromBroadcast(message) {
-                try {
-                    const msgId = message.key?.id || `status_broadcast_${Date.now()}`;
-                    
-                    // Extract sender info from status
-                    const pushName = message.pushName || 'Unknown';
-                    const statusContent = message.message;
-                    
-                    let text = '';
-                    let type = 'text';
-                    let hasMedia = false;
-                    let mimetype = '';
-                    
-                    if (statusContent?.conversation) {
-                        text = statusContent.conversation;
-                    } else if (statusContent?.extendedTextMessage?.text) {
-                        text = statusContent.extendedTextMessage.text;
-                    } else if (statusContent?.imageMessage) {
-                        type = 'image';
-                        text = statusContent.imageMessage.caption || '';
-                        mimetype = statusContent.imageMessage.mimetype || 'image/jpeg';
-                        hasMedia = true;
-                    } else if (statusContent?.videoMessage) {
-                        type = 'video';
-                        text = statusContent.videoMessage.caption || '';
-                        mimetype = statusContent.videoMessage.mimetype || 'video/mp4';
-                        hasMedia = true;
-                    }
-                    
-                    // Try to get sender JID from status
-                    let senderJid = null;
-                    if (message.key?.participant) {
-                        senderJid = message.key.participant;
-                    }
-                    
-                    if (senderJid) {
-                        const statusDetails = {
-                            id: msgId,
-                            jid: senderJid,
-                            timestamp: Date.now(),
-                            phoneNumber: senderJid.split('@')[0],
-                            pushName: pushName,
-                            type: type,
-                            hasMedia: hasMedia,
-                            text: text,
-                            mimetype: mimetype,
-                            fromBroadcast: true,
-                            mediaInfo: hasMedia ? { message: message, type: type } : null
-                        };
-                        
-                        tracker.statusCache.set(msgId, statusDetails);
-                        tracker.stats.statusesDetected++;
-                        
-                        cleanLog(`Broadcast status stored: ${pushName} (${type})`, 'status');
-                        
-                        // Download media if present
-                        if (hasMedia) {
-                            setTimeout(async () => {
-                                try {
-                                    await downloadAndSaveStatusMedia(msgId, statusDetails);
-                                } catch (error) {
-                                    cleanLog(`Broadcast media download failed: ${error.message}`, 'error');
-                                }
-                            }, 1000);
-                        }
-                    }
-                    
-                } catch (error) {
-                    cleanLog(`Broadcast status error: ${error.message}`, 'error');
-                }
-            }
             
             // Handle message deletions
             sock.ev.on('messages.update', async (updates) => {
@@ -2103,13 +2708,14 @@ export default {
                             const statusValue = updateData.status;
                             const jid = chatId;
                             
-                            cleanLog(`Status update: ${jid} → ${statusValue}`, 'status');
-                            
                             if (statusValue === 2) { // Status posted
-                                await storeStatusUpdate({
-                                    jid: jid,
-                                    status: { id: messageId }
-                                });
+                                setTimeout(async () => {
+                                    try {
+                                        await fetchAndViewStatus(jid);
+                                    } catch (error) {
+                                        backgroundLog(`Status fetch failed: ${error.message}`, 'error');
+                                    }
+                                }, 2000);
                             } else if (statusValue === 3) { // Status deleted
                                 await handleDeletedStatus(messageId);
                             }
@@ -2127,109 +2733,70 @@ export default {
                         }
                     }
                 } catch (error) {
-                    cleanLog(`Detection error: ${error.message}`, 'error');
-                }
-            });
-            
-            // Listen for presence updates (status deletions)
-            sock.ev.on('presence.update', async (update) => {
-                try {
-                    if (!tracker.active || !tracker.config.captureStatuses) return;
-                    
-                    if (update.type === 'unavailable' && update.id) {
-                        const statusId = update.id;
-                        if (tracker.statusCache.has(statusId)) {
-                            await handleDeletedStatus(statusId);
-                        }
-                    }
-                } catch (error) {
-                    cleanLog(`Status presence error: ${error.message}`, 'error');
+                    backgroundLog(`Detection error: ${error.message}`, 'error');
                 }
             });
             
             tracker.listenerSetup = true;
-            cleanLog(`Listener ready with status support in ${tracker.mode} mode`, 'success');
+            bg.active = true;
+            backgroundLog(`Background listener ready`, 'success');
         }
         
-        // ====== EXISTING MESSAGE HANDLING FUNCTIONS ======
-        // (Keep all existing storeMessageWithMedia, handleDeletedMessage, sendMediaToChat, etc.)
-        // ... [All the existing message handling functions remain the same]
+        // Stop background listener
+        function stopBackgroundListener() {
+            if (tracker.cleanupInterval) {
+                clearInterval(tracker.cleanupInterval);
+                tracker.cleanupInterval = null;
+            }
+            
+            tracker.listenerSetup = false;
+            tracker.active = false;
+            bg.active = false;
+            backgroundLog(`Background listener stopped`, 'stop');
+        }
         
         // ====== COMMAND HANDLER ======
         switch (command) {
             case 'on':
             case 'enable':
             case 'start':
-                if (args[1]?.toLowerCase() === 'private') {
-                    if (!isOwner(msg)) {
-                        return sock.sendMessage(chatId, {
-                            text: `❌ *Owner Only*\n\nOnly the bot owner can enable private mode.\n\nCurrent owner: ${OWNER_NUMBER || 'Not set'}`
-                        }, { quoted: msg });
-                    }
-                    tracker.mode = 'private';
-                } else {
-                    tracker.mode = 'public';
-                }
-                
                 tracker.active = true;
+                tracker.mode = args[1]?.toLowerCase() === 'public' ? 'public' : 'private';
                 
                 // Reset stats
                 Object.keys(tracker.stats).forEach(key => {
                     tracker.stats[key] = 0;
                 });
                 
-                setupTerminalListener();
+                setupBackgroundListener();
                 
-                const modeDescription = tracker.mode === 'private' ? 
-                    `🔒 *PRIVATE MODE*\n\nAll deleted messages will be sent to owner's DM:\n${getOwnerJid() || 'Owner not set'}` :
-                    `🌐 *PUBLIC MODE*\n\nDeleted messages will be shown in the original chat.`;
-                
-                const statusConfig = tracker.config.captureStatuses ? 
-                    `📱 *Status Monitoring:* ✅ ENABLED\n• Auto-view: ${tracker.config.autoViewStatuses ? 'ON' : 'OFF'}\n• Privacy: ${tracker.config.statusPrivacy}` :
-                    `📱 *Status Monitoring:* ❌ DISABLED`;
-                
-                cleanLog(`Antidelete ${tracker.mode.toUpperCase()} mode enabled`, 'success');
+                backgroundLog(`System enabled in ${tracker.mode} mode`, 'start');
                 
                 await sock.sendMessage(chatId, {
-                    text: `✅ *ANTIDELETE ENABLED*\n\n${modeDescription}\n\n${statusConfig}\n\nFeatures:\n• Message/media antidelete\n• Status monitoring & auto-view\n• Auto-cleanup system\n\nUse \`${PREFIX}antidelete test\` to verify.`
+                    text: `✅ *ANTIDELETE ENABLED*\n\nMode: ${tracker.mode.toUpperCase()}\nStatus: ✅ ACTIVE\nStealth: ✅ ON\n\nAll deleted content will be sent to your DM.\n\nUse \`${PREFIX}antidelete stats\` to monitor.`
                 }, { quoted: msg });
                 break;
                 
             case 'off':
-                tracker.active = false;
-                if (tracker.cleanupInterval) {
-                    clearInterval(tracker.cleanupInterval);
-                    tracker.cleanupInterval = null;
-                }
-                if (tracker.statusViewInterval) {
-                    clearInterval(tracker.statusViewInterval);
-                    tracker.statusViewInterval = null;
-                }
-                
-                cleanLog('Antidelete disabled', 'system');
+            case 'disable':
+            case 'stop':
+                stopBackgroundListener();
                 
                 await sock.sendMessage(chatId, {
-                    text: `✅ *ANTIDELETE DISABLED*\n\nMode was: ${tracker.mode.toUpperCase()}\n\nUse \`${PREFIX}antidelete on\` to enable.`
+                    text: `✅ *ANTIDELETE DISABLED*\n\nSystem stopped. No longer capturing deletions.`
                 }, { quoted: msg });
                 break;
                 
             case 'status':
-                if (!isOwner(msg)) {
-                    return sock.sendMessage(chatId, {
-                        text: `❌ *Owner Only*\n\nStatus monitoring settings can only be changed by the owner.`
-                    }, { quoted: msg });
-                }
-                
                 const subCmd = args[1]?.toLowerCase();
                 
                 if (!subCmd) {
                     const statusInfo = `
-📱 *Status Monitoring Settings*
+📱 *Status Monitoring*
 
-Capture: ${tracker.config.captureStatuses ? '✅ ENABLED' : '❌ DISABLED'}
-Auto-view: ${tracker.config.autoViewStatuses ? '✅ ON' : '❌ OFF'}
-Privacy: ${tracker.config.statusPrivacy.toUpperCase()}
-View Delay: ${tracker.config.statusViewDelay}ms
+Active: ${tracker.active ? '✅' : '❌'}
+Capture: ${tracker.config.captureStatuses ? '✅' : '❌'}
+Auto-view: ${tracker.config.autoViewStatuses ? '✅' : '❌'}
 
 📊 *Statistics:*
 Detected: ${tracker.stats.statusesDetected}
@@ -2237,15 +2804,11 @@ Viewed: ${tracker.stats.statusesViewed}
 Downloaded: ${tracker.stats.statusesDownloaded}
 Deleted: ${tracker.stats.statusesDeleted}
 Retrieved: ${tracker.stats.statusesRetrieved}
-Cached: ${tracker.statusCache.size}
-Queue: ${tracker.statusViewQueue.size}
 
 💡 *Commands:*
-• \`${PREFIX}antidelete status on/off\` - Toggle capture
+• \`${PREFIX}antidelete status on/off\` - Toggle
 • \`${PREFIX}antidelete status view on/off\` - Auto-view
-• \`${PREFIX}antidelete status privacy <owner/all/none>\`
-• \`${PREFIX}antidelete status delay <ms>\` - Set view delay
-• \`${PREFIX}antidelete status fetch <number>\` - Fetch specific status
+• \`${PREFIX}antidelete status fetch <number>\` - Fetch status
 • \`${PREFIX}antidelete status clear\` - Clear cache
 `;
                     
@@ -2257,14 +2820,14 @@ Queue: ${tracker.statusViewQueue.size}
                     case 'on':
                         tracker.config.captureStatuses = true;
                         await sock.sendMessage(chatId, {
-                            text: `✅ *Status Capture ENABLED*\n\nDeleted statuses will be captured.`
+                            text: `✅ *Status Capture ENABLED*`
                         }, { quoted: msg });
                         break;
                         
                     case 'off':
                         tracker.config.captureStatuses = false;
                         await sock.sendMessage(chatId, {
-                            text: `✅ *Status Capture DISABLED*\n\nStatus monitoring turned off.`
+                            text: `✅ *Status Capture DISABLED*`
                         }, { quoted: msg });
                         break;
                         
@@ -2272,22 +2835,13 @@ Queue: ${tracker.statusViewQueue.size}
                         const viewMode = args[2]?.toLowerCase();
                         if (viewMode === 'on') {
                             tracker.config.autoViewStatuses = true;
-                            setupStatusViewInterval();
                             await sock.sendMessage(chatId, {
-                                text: `✅ *Auto-view ENABLED*\n\nStatuses will be automatically viewed and downloaded.`
+                                text: `✅ *Auto-view ENABLED*`
                             }, { quoted: msg });
                         } else if (viewMode === 'off') {
                             tracker.config.autoViewStatuses = false;
-                            if (tracker.statusViewInterval) {
-                                clearInterval(tracker.statusViewInterval);
-                                tracker.statusViewInterval = null;
-                            }
                             await sock.sendMessage(chatId, {
-                                text: `✅ *Auto-view DISABLED*\n\nStatus auto-viewing turned off.`
-                            }, { quoted: msg });
-                        } else {
-                            await sock.sendMessage(chatId, {
-                                text: `❓ Usage: \`${PREFIX}antidelete status view on/off\``
+                                text: `✅ *Auto-view DISABLED*`
                             }, { quoted: msg });
                         }
                         break;
@@ -2308,66 +2862,25 @@ Queue: ${tracker.statusViewQueue.size}
                         }, { quoted: msg });
                         
                         try {
-                            const success = await fetchStatusContent(fetchJid);
-                            if (success) {
-                                await sock.sendMessage(chatId, {
-                                    text: `✅ Status fetched successfully for ${number}`
-                                });
-                            } else {
-                                await sock.sendMessage(chatId, {
-                                    text: `❌ Could not fetch status for ${number}`
-                                });
-                            }
+                            const success = await fetchAndViewStatus(fetchJid);
+                            await sock.sendMessage(chatId, {
+                                text: success ? `✅ Status fetched` : `❌ No status found`
+                            });
                         } catch (error) {
                             await sock.sendMessage(chatId, {
-                                text: `❌ Error fetching status: ${error.message}`
+                                text: `❌ Error: ${error.message}`
                             });
                         }
-                        break;
-                        
-                    case 'delay':
-                        const delayMs = parseInt(args[2]);
-                        if (!delayMs || delayMs < 0) {
-                            await sock.sendMessage(chatId, {
-                                text: `❓ Usage: \`${PREFIX}antidelete status delay <milliseconds>\``
-                            }, { quoted: msg });
-                            return;
-                        }
-                        
-                        tracker.config.statusViewDelay = delayMs;
-                        await sock.sendMessage(chatId, {
-                            text: `✅ *View delay updated*\n\nDelay set to: ${delayMs}ms`
-                        }, { quoted: msg });
-                        break;
-                        
-                    case 'privacy':
-                        const privacyMode = args[2]?.toLowerCase();
-                        if (!privacyMode || !['owner', 'all', 'none'].includes(privacyMode)) {
-                            await sock.sendMessage(chatId, {
-                                text: `🔒 *Status Privacy*\n\nCurrent: ${tracker.config.statusPrivacy}\n\nOptions:\n• owner - Send to owner DM\n• all - Show in chat\n• none - Don't retrieve\n\nUsage: \`${PREFIX}antidelete status privacy <mode>\``
-                            }, { quoted: msg });
-                            return;
-                        }
-                        
-                        tracker.config.statusPrivacy = privacyMode;
-                        await sock.sendMessage(chatId, {
-                            text: `✅ *Privacy Updated*\n\nMode: ${privacyMode.toUpperCase()}`
-                        }, { quoted: msg });
                         break;
                         
                     case 'clear':
                         const statusCount = tracker.statusCache.size;
                         const mediaCount = tracker.statusStorage.size;
-                        const queueCount = tracker.statusViewQueue.size;
                         
                         tracker.statusCache.clear();
                         tracker.statusStorage.clear();
-                        tracker.statusViewQueue.clear();
-                        tracker.seenStatuses.clear();
-                        tracker.processedStatusDeletions.clear();
                         tracker.statusDmLog.clear();
                         
-                        // Clean files
                         try {
                             const files = await fs.readdir(STATUS_STORAGE_PATH);
                             for (const file of files) {
@@ -2376,105 +2889,211 @@ Queue: ${tracker.statusViewQueue.size}
                         } catch (error) {}
                         
                         await sock.sendMessage(chatId, {
-                            text: `🧹 *Status Cache Cleared*\n\nStatuses: ${statusCount}\nMedia: ${mediaCount}\nQueue: ${queueCount}`
+                            text: `🧹 Cleared ${statusCount} statuses, ${mediaCount} media files`
                         }, { quoted: msg });
                         break;
-                        
-                    default:
-                        await sock.sendMessage(chatId, {
-                            text: `❓ *Invalid Status Command*\n\nUse \`${PREFIX}antidelete status\` for options.`
-                        }, { quoted: msg });
                 }
+                break;
+                
+            case 'logs':
+                const logCount = parseInt(args[1]) || 10;
+                const logs = bg.getRecentLogs(logCount);
+                const stats = bg.getStats();
+                
+                const logText = `
+📋 *BACKGROUND LOGS* (${stats.totalLogs} total)
+
+${logs || 'No logs available'}
+
+📊 *Log Statistics:*
+Errors: ${stats.errors}
+Warnings: ${stats.warnings}
+Infos: ${stats.infos}
+Last activity: ${stats.lastActivity}
+`;
+                
+                await sock.sendMessage(chatId, { text: logText }, { quoted: msg });
                 break;
                 
             case 'debug':
-                if (!isOwner(msg)) {
-                    return sock.sendMessage(chatId, {
-                        text: `❌ *Owner Only*\n\nDebug info is only available to the owner.`
-                    }, { quoted: msg });
-                }
+                const debugInfo = `
+🔧 *ANTIDELETE DEBUG*
+
+System: ${tracker.active ? '✅ ACTIVE' : '❌ INACTIVE'}
+Mode: ${tracker.mode.toUpperCase()}
+Stealth: ${tracker.config.stealthMode ? '✅ ON' : '❌ OFF'}
+
+📊 *Cache:*
+Messages: ${tracker.messageCache.size}
+Statuses: ${tracker.statusCache.size}
+Media files: ${tracker.mediaStorage.size}
+Status media: ${tracker.statusStorage.size}
+
+⚙️ *Configuration:*
+Auto-cleanup: ${tracker.config.autoCleanup ? 'ON' : 'OFF'}
+Cleanup hours: ${tracker.config.maxStorageHours}
+Status capture: ${tracker.config.captureStatuses ? 'ON' : 'OFF'}
+Status auto-view: ${tracker.config.autoViewStatuses ? 'ON' : 'OFF'}
+
+🕒 Last cleanup: ${new Date(tracker.lastCleanup).toLocaleTimeString()}
+`;
                 
-                console.log('\n🔧 ANTIDELETE DEBUG');
-                console.log('─'.repeat(70));
-                console.log(`System: ${tracker.active ? 'ACTIVE' : 'INACTIVE'}`);
-                console.log(`Mode: ${tracker.mode}`);
-                console.log(`Status capture: ${tracker.config.captureStatuses}`);
-                console.log(`Auto-view: ${tracker.config.autoViewStatuses}`);
-                console.log(`View delay: ${tracker.config.statusViewDelay}ms`);
-                console.log(`Status cache: ${tracker.statusCache.size}`);
-                console.log(`Status storage: ${tracker.statusStorage.size}`);
-                console.log(`View queue: ${tracker.statusViewQueue.size}`);
-                console.log(`Status viewed: ${tracker.stats.statusesViewed}`);
-                console.log(`Status downloaded: ${tracker.stats.statusesDownloaded}`);
-                
-                // Show status view queue
-                if (tracker.statusViewQueue.size > 0) {
-                    console.log('\n📋 STATUS VIEW QUEUE:');
-                    let index = 1;
-                    for (const [jid, data] of tracker.statusViewQueue.entries()) {
-                        const age = Math.round((Date.now() - data.timestamp) / 1000);
-                        console.log(`${index}. ${data.phoneNumber}`);
-                        console.log(`   Attempts: ${data.attempts}, Age: ${age}s`);
-                        index++;
-                        if (index > 5) break;
-                    }
-                }
-                
-                // Show recent statuses
-                if (tracker.statusCache.size > 0) {
-                    console.log('\n📱 RECENT STATUSES:');
-                    let index = 1;
-                    const sortedStatuses = Array.from(tracker.statusCache.entries())
-                        .sort((a, b) => b[1].timestamp - a[1].timestamp)
-                        .slice(0, 5);
-                    
-                    for (const [id, status] of sortedStatuses) {
-                        const age = Math.round((Date.now() - status.timestamp) / 1000);
-                        console.log(`${index}. ${status.phoneNumber} (${status.type})`);
-                        console.log(`   Text: ${status.text?.substring(0, 30) || 'None'}...`);
-                        console.log(`   Media: ${status.hasMedia ? 'Yes' : 'No'}, Age: ${age}s`);
-                        console.log(`   ID: ${id.substring(0, 12)}...`);
-                        index++;
-                    }
-                }
-                
-                console.log('─'.repeat(70));
-                
-                await sock.sendMessage(chatId, {
-                    text: `🔧 Debug info sent to terminal\n\nStatus viewed: ${tracker.stats.statusesViewed}\nStatus downloaded: ${tracker.stats.statusesDownloaded}\nQueue: ${tracker.statusViewQueue.size}`
-                });
+                await sock.sendMessage(chatId, { text: debugInfo }, { quoted: msg });
                 break;
                 
-            // ... [Keep other commands the same]
-            
-            default:
-                const statusSummary = tracker.config.captureStatuses ? 
-                    `📱 Status: ✅ ON (Viewed: ${tracker.stats.statusesViewed})` : 
-                    `📱 Status: ❌ OFF`;
+            case 'test':
+                await sock.sendMessage(chatId, {
+                    text: `✅ *Test Message*\n\nSystem: ${tracker.active ? 'ACTIVE' : 'INACTIVE'}\nMode: ${tracker.mode}\n\nDelete this message to test antidelete.`
+                }, { quoted: msg });
+                break;
                 
+            case 'clear':
+            case 'clean':
+                const msgCount = tracker.messageCache.size;
+                const statusCount = tracker.statusCache.size;
+                const mediaCount = tracker.mediaStorage.size;
+                const statusMediaCount = tracker.statusStorage.size;
+                
+                tracker.messageCache.clear();
+                tracker.statusCache.clear();
+                tracker.mediaStorage.clear();
+                tracker.statusStorage.clear();
+                tracker.seenMessages.clear();
+                tracker.seenStatuses.clear();
+                tracker.processedDeletions.clear();
+                tracker.processedStatusDeletions.clear();
+                tracker.ownerDmLog.clear();
+                tracker.statusDmLog.clear();
+                
+                // Clean files
+                try {
+                    const mediaFiles = await fs.readdir(MEDIA_STORAGE_PATH);
+                    for (const file of mediaFiles) {
+                        await fs.unlink(path.join(MEDIA_STORAGE_PATH, file));
+                    }
+                    
+                    const statusFiles = await fs.readdir(STATUS_STORAGE_PATH);
+                    for (const file of statusFiles) {
+                        await fs.unlink(path.join(STATUS_STORAGE_PATH, file));
+                    }
+                } catch (error) {}
+                
+                backgroundLog(`Cache cleared by owner`, 'system');
+                
+                await sock.sendMessage(chatId, {
+                    text: `🧹 *Cache Cleared*\n\n• Messages: ${msgCount}\n• Statuses: ${statusCount}\n• Media files: ${mediaCount}\n• Status media: ${statusMediaCount}`
+                }, { quoted: msg });
+                break;
+                
+            case 'stats':
+            case 'stat':
+                const statsText = `
+📊 *ANTIDELETE STATISTICS*
+
+🔹 *Messages:*
+Detected: ${tracker.stats.deletionsDetected}
+Retrieved: ${tracker.stats.retrievedSuccessfully}
+Media sent: ${tracker.stats.mediaSent}
+Sent to DM: ${tracker.stats.sentToDm}
+
+🔹 *Statuses:*
+Detected: ${tracker.stats.statusesDetected}
+Viewed: ${tracker.stats.statusesViewed}
+Downloaded: ${tracker.stats.statusesDownloaded}
+Deleted: ${tracker.stats.statusesDeleted}
+Retrieved: ${tracker.stats.statusesRetrieved}
+
+🔹 *Background:*
+Active: ${bg.active ? '✅' : '❌'}
+Log entries: ${bg.getStats().totalLogs}
+Last activity: ${bg.getStats().lastActivity}
+`;
+                
+                await sock.sendMessage(chatId, { text: statsText }, { quoted: msg });
+                break;
+                
+            case 'stealth':
+                const stealthMode = args[1]?.toLowerCase();
+                if (stealthMode === 'on') {
+                    tracker.config.stealthMode = true;
+                    tracker.config.logToTerminal = false;
+                    await sock.sendMessage(chatId, {
+                        text: `✅ *Stealth Mode ON*\n\nRunning silently in background.`
+                    }, { quoted: msg });
+                } else if (stealthMode === 'off') {
+                    tracker.config.stealthMode = false;
+                    tracker.config.logToTerminal = true;
+                    await sock.sendMessage(chatId, {
+                        text: `✅ *Stealth Mode OFF*\n\nShowing logs in terminal.`
+                    }, { quoted: msg });
+                }
+                break;
+                
+            case 'mode':
+                const mode = args[1]?.toLowerCase();
+                if (mode === 'public') {
+                    tracker.mode = 'public';
+                    await sock.sendMessage(chatId, {
+                        text: `✅ *Mode set to PUBLIC*\n\nDeleted messages will be shown in chat.`
+                    }, { quoted: msg });
+                } else if (mode === 'private') {
+                    tracker.mode = 'private';
+                    await sock.sendMessage(chatId, {
+                        text: `✅ *Mode set to PRIVATE*\n\nDeleted messages sent to your DM only.`
+                    }, { quoted: msg });
+                }
+                break;
+                
+            case 'help':
+            case 'menu':
+                const helpText = `
+👑 *ANTIDELETE (OWNER ONLY)*
+
+🚀 *Core Commands:*
+• \`${PREFIX}antidelete on\` - Enable (private mode)
+• \`${PREFIX}antidelete on public\` - Enable public mode
+• \`${PREFIX}antidelete off\` - Disable system
+• \`${PREFIX}antidelete test\` - Send test message
+• \`${PREFIX}antidelete stats\` - View statistics
+
+📱 *Status Commands:*
+• \`${PREFIX}antidelete status\` - Status settings
+• \`${PREFIX}antidelete status on/off\` - Toggle capture
+• \`${PREFIX}antidelete status fetch <number>\` - Fetch status
+• \`${PREFIX}antidelete status clear\` - Clear cache
+
+🔧 *Management:*
+• \`${PREFIX}antidelete logs\` - View background logs
+• \`${PREFIX}antidelete debug\` - Debug information
+• \`${PREFIX}antidelete clear\` - Clear all cache
+• \`${PREFIX}antidelete stealth on/off\` - Toggle stealth
+• \`${PREFIX}antidelete mode <public/private>\` - Change mode
+
+📊 *Current Status:*
+• System: ${tracker.active ? '✅ ACTIVE' : '❌ INACTIVE'}
+• Mode: ${tracker.mode}
+• Stealth: ${tracker.config.stealthMode ? 'ON' : 'OFF'}
+• Messages cached: ${tracker.messageCache.size}
+`;
+                
+                await sock.sendMessage(chatId, { text: helpText }, { quoted: msg });
+                break;
+                
+            default:
                 const defaultResponse = `
-🚫 *Antidelete System*
+👑 *Antidelete System*
 
 Status: ${tracker.active ? '✅ ACTIVE' : '❌ INACTIVE'}
 Mode: ${tracker.mode.toUpperCase()}
-${statusSummary}
+Stealth: ${tracker.config.stealthMode ? '✅ ON' : '❌ OFF'}
 
 📊 *Performance:*
 Messages cached: ${tracker.messageCache.size}
 Statuses cached: ${tracker.statusCache.size}
-Media files: ${tracker.mediaStorage.size}
+Last retrieved: ${tracker.stats.retrievedSuccessfully}
 
-${tracker.mode === 'private' ? 
-`🔒 *Private Mode Active*
-Deleted messages sent to owner's DM` : 
-`🌐 *Public Mode Active*
-Deleted messages shown in chat`}
-
-Owner: ${OWNER_NUMBER || 'Not set'}
-
-Use \`${PREFIX}antidelete on\` to enable
-Use \`${PREFIX}antidelete help\` for all commands
-`.trim();
+💡 *Use \`${PREFIX}antidelete help\` for commands*
+`;
                 
                 await sock.sendMessage(chatId, {
                     text: defaultResponse

@@ -1,3 +1,10 @@
+
+
+
+
+
+
+
 // import axios from "axios";
 
 // export default {
@@ -11,11 +18,20 @@
 
 //       const startTime = Date.now();
       
-//       // Test connection with a simple request
-//       await axios.get("https://api.github.com", {
-//         timeout: 5000,
-//         headers: { "User-Agent": "Silent-Wolf-Bot" }
-//       });
+//       // 🔧 Fetch GitHub user data to get profile image
+//       const owner = "777Wolf-dot";
+//       const githubUserUrl = `https://api.github.com/users/${owner}`;
+      
+//       // Fetch GitHub user data
+//       const { data: githubData } = await axios.get(
+//         githubUserUrl,
+//         { 
+//           headers: { 
+//             "User-Agent": "Silent-Wolf-Bot",
+//             "Accept": "application/vnd.github.v3+json"
+//           } 
+//         }
+//       );
       
 //       const apiLatency = Date.now() - startTime;
       
@@ -30,12 +46,12 @@
 //       const totalMemory = process.memoryUsage().heapTotal / 1024 / 1024;
       
 //       const text = `
-// ⚡ *BOT STATUS & PING* ⚡
+// ⚡ *BOT STATUS & PING*
 
 // 📡 *Bot Latency:* ${apiLatency}ms
 // ⏱️ *Uptime:* ${hours}h ${minutes}m ${seconds}s
-// 💾 *Memory Usage:* ${usedMemory.toFixed(2)}MB / ${totalMemory.toFixed(2)}MB
-// 👋 @${sender.split("@")[0]}, *WolfBot* is running
+// 💾 *Memory:* ${usedMemory.toFixed(2)}MB / ${totalMemory.toFixed(2)}MB
+// 👋 @${sender.split("@")[0]}, WolfBot is running smoothly!
 //       `.trim();
 
 //       await sock.sendMessage(
@@ -48,7 +64,8 @@
 //               title: "🐺 Silent Wolf Bot Status",
 //               body: `Ping: ${apiLatency}ms | Uptime: ${hours}h`,
 //               mediaType: 1,
-//               sourceUrl: "https://github.com/777Wolf-dot/Silent-Wolf--Bot",
+//               thumbnailUrl: githubData.avatar_url, // This will show your GitHub profile image
+//               sourceUrl: githubData.html_url,
 //               renderLargerThumbnail: true,
 //               showAdAttribution: false
 //             },
@@ -62,20 +79,17 @@
 //     } catch (err) {
 //       console.error("❌ Ping command error:", err.message || err);
       
+//       // Fallback to basic info if API fails
 //       const fallbackText = `
-// ⚡ *BOT STATUS & PING* ⚡
+// ⚡ *BOT STATUS & PING*
 
 // 📡 *Bot Latency:* Unable to measure
 // ⏱️ *Uptime:* Calculating...
-// 💾 *Memory Usage:* Unknown
-// 📱 *Platform:* WhatsApp Web
-// 🤖 *Bot Version:* Silent Wolf v1.0
-// 🟡 *Status:* Limited Connectivity
+// 💾 *Memory:* Unknown
+// 👤 *Developer:* 777Wolf-dot
 
-// ⚠️ *Note:* Some services may be temporarily unavailable
-// 👋 @${sender.split("@")[0]}, bot is still running!
-
-// 🔗 *GitHub:* https://github.com/777Wolf-dot/Silent-Wolf--Bot
+// 👋 @${owner.split("@")[0]}, bot is still running!
+// ⚠️ Connection issues detected
 //       `.trim();
 
 //       await sock.sendMessage(
@@ -88,8 +102,10 @@
 //               title: "Silent Wolf Bot Status",
 //               body: "Connection issues detected",
 //               mediaType: 1,
-//               sourceUrl: "https://github.com/777Wolf-dot/Silent-Wolf--Bot",
-//               renderLargerThumbnail: true
+//               thumbnailUrl: "https://avatars.githubusercontent.com/u/583231?v=4", // Default GitHub avatar
+//               sourceUrl: "https://github.com/777Wolf-dot",
+//               renderLargerThumbnail: true,
+//               showAdAttribution: false
 //             }
 //           }
 //         },
@@ -97,12 +113,7 @@
 //       );
 //     }
 //   },
-// };
-
-
-
-
-
+// };                
 
 
 
@@ -111,6 +122,8 @@
 
 
 import axios from "axios";
+import fs from "fs/promises";
+import path from "path";
 
 export default {
   name: "p",
@@ -121,11 +134,30 @@ export default {
       const jid = m.key.remoteJid;
       const sender = m.key.participant || m.key.remoteJid;
 
+      // Read owner information from owner.json
+      let ownerJid = "";
+      let ownerNumber = "";
+      
+      try {
+        const ownerPath = path.join(process.cwd(), "owner.json");
+        const ownerData = await fs.readFile(ownerPath, "utf8");
+        const ownerInfo = JSON.parse(ownerData);
+        
+        ownerJid = ownerInfo.OWNER_JID || ownerInfo.OWNER_CLEAN_JID || "";
+        ownerNumber = ownerInfo.OWNER_NUMBER || ownerInfo.OWNER_CLEAN_NUMBER || "";
+        
+        console.log(`📋 Owner info loaded: ${ownerNumber} | ${ownerJid}`);
+      } catch (ownerError) {
+        console.error("❌ Failed to read owner.json:", ownerError.message);
+        // Fallback to hardcoded owner if file not found
+      
+      }
+
       const startTime = Date.now();
       
       // 🔧 Fetch GitHub user data to get profile image
-      const owner = "777Wolf-dot";
-      const githubUserUrl = `https://api.github.com/users/${owner}`;
+      const githubOwner = "777Wolf-dot";
+      const githubUserUrl = `https://api.github.com/users/${githubOwner}`;
       
       // Fetch GitHub user data
       const { data: githubData } = await axios.get(
@@ -150,13 +182,17 @@ export default {
       const usedMemory = process.memoryUsage().heapUsed / 1024 / 1024;
       const totalMemory = process.memoryUsage().heapTotal / 1024 / 1024;
       
+      // Extract owner name from JID for mention
+      const ownerForMention = ownerNumber || ownerJid.split("@")[0] || "Owner";
+      
       const text = `
 ⚡ *BOT STATUS & PING*
 
 📡 *Bot Latency:* ${apiLatency}ms
 ⏱️ *Uptime:* ${hours}h ${minutes}m ${seconds}s
 💾 *Memory:* ${usedMemory.toFixed(2)}MB / ${totalMemory.toFixed(2)}MB
-👋 @${sender.split("@")[0]}, WolfBot is running smoothly!
+🐺 *Maintained by:* @${ownerForMention}
+🔧 *GitHub:* ${githubOwner}
       `.trim();
 
       await sock.sendMessage(
@@ -164,12 +200,12 @@ export default {
         {
           text,
           contextInfo: {
-            mentionedJid: [sender],
+            mentionedJid: ownerJid ? [ownerJid] : [], // Tag the owner from owner.json
             externalAdReply: {
               title: "🐺 Silent Wolf Bot Status",
               body: `Ping: ${apiLatency}ms | Uptime: ${hours}h`,
               mediaType: 1,
-              thumbnailUrl: githubData.avatar_url, // This will show your GitHub profile image
+              thumbnailUrl: githubData.avatar_url,
               sourceUrl: githubData.html_url,
               renderLargerThumbnail: true,
               showAdAttribution: false
@@ -179,21 +215,35 @@ export default {
         { quoted: m }
       );
 
-      console.log(`✅ Ping command executed - Latency: ${apiLatency}ms`);
+      console.log(`✅ Ping command executed - Latency: ${apiLatency}ms | Owner tagged: ${ownerJid}`);
 
     } catch (err) {
       console.error("❌ Ping command error:", err.message || err);
       
-      // Fallback to basic info if API fails
+      // Try to read owner info again for fallback
+      let fallbackOwnerJid = "";
+      let fallbackOwnerNumber = "";
+      
+      try {
+        const ownerPath = path.join(process.cwd(), "owner.json");
+        const ownerData = await fs.readFile(ownerPath, "utf8");
+        const ownerInfo = JSON.parse(ownerData);
+        
+        fallbackOwnerJid = ownerInfo.OWNER_JID || ownerInfo.OWNER_CLEAN_JID || "";
+        fallbackOwnerNumber = ownerInfo.OWNER_NUMBER || ownerInfo.OWNER_CLEAN_NUMBER || "";
+      } catch {
+        fallbackOwnerJid = "254703397679@s.whatsapp.net";
+        fallbackOwnerNumber = "254703397679";
+      }
+      
       const fallbackText = `
 ⚡ *BOT STATUS & PING*
 
 📡 *Bot Latency:* Unable to measure
 ⏱️ *Uptime:* Calculating...
 💾 *Memory:* Unknown
-👤 *Developer:* 777Wolf-dot
+🐺 *Maintained by:* @${fallbackOwnerNumber || "Owner"}
 
-👋 @${sender.split("@")[0]}, bot is still running!
 ⚠️ Connection issues detected
       `.trim();
 
@@ -202,12 +252,12 @@ export default {
         { 
           text: fallbackText,
           contextInfo: {
-            mentionedJid: [sender],
+            mentionedJid: fallbackOwnerJid ? [fallbackOwnerJid] : [],
             externalAdReply: {
               title: "Silent Wolf Bot Status",
               body: "Connection issues detected",
               mediaType: 1,
-              thumbnailUrl: "https://avatars.githubusercontent.com/u/583231?v=4", // Default GitHub avatar
+              thumbnailUrl: "https://avatars.githubusercontent.com/u/583231?v=4",
               sourceUrl: "https://github.com/777Wolf-dot",
               renderLargerThumbnail: true,
               showAdAttribution: false
@@ -218,4 +268,4 @@ export default {
       );
     }
   },
-};                
+};
