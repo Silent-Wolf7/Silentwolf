@@ -1,0 +1,8 @@
+{
+  "enabled": false,
+  "mode": "both",
+  "delay": 2000,
+  "whitelist": [],
+  "blacklist": [],
+  "silent": true
+}
