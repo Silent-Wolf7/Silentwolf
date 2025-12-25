@@ -3,16 +3,6 @@
     {
       "sender": "260779291415",
       "fullSender": "260779291415@s.whatsapp.net",
-      "type": "video",
-      "caption": "😂",
-      "fileInfo": "🎬 10s | 1602KB",
-      "postedAt": "11:20:18 PM",
-      "detectedAt": "11:20:19 PM",
-      "timestamp": 1766694019593
-    },
-    {
-      "sender": "260779291415",
-      "fullSender": "260779291415@s.whatsapp.net",
       "type": "unknown",
       "caption": "",
       "fileInfo": "",
@@ -1011,6 +1001,6 @@
       "timestamp": 1766700451632
     }
   ],
-  "updatedAt": "2025-12-25T22:08:58.107Z",
-  "count": 101
+  "updatedAt": "2025-12-25T22:51:48.659Z",
+  "count": 100
 }

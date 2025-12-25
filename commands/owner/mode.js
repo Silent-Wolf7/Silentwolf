@@ -544,25 +544,25 @@ export default {
             
             let successMsg = `✅ *Mode Updated Successfully!*\n\n`;
             successMsg += `${modeInfo.icon} New Mode: *${modeInfo.name}*\n`;
-            successMsg += `📝 ${modeInfo.description}\n\n`;
-            successMsg += `✅ Changes applied to multiple locations:\n`;
-            successMsg += `├─ Root directory ✓\n`;
-            successMsg += `├─ Command directory ✓\n`;
-            successMsg += `├─ Global variables ✓\n`;
-            successMsg += `└─ Environment variables ✓\n\n`;
+            // successMsg += `📝 ${modeInfo.description}\n\n`;
+            // successMsg += `✅ Changes applied to multiple locations:\n`;
+            // successMsg += `├─ Root directory ✓\n`;
+            // successMsg += `├─ Command directory ✓\n`;
+            // successMsg += `├─ Global variables ✓\n`;
+            // successMsg += `└─ Environment variables ✓\n\n`;
             
             if (requestedMode === 'silent') {
-                successMsg += `⚠️ *IMPORTANT:* In SILENT mode:\n`;
-                successMsg += `• Only you (the owner) can use commands\n`;
-                successMsg += `• Others will receive no response\n`;
-                successMsg += `• Menu will show "🔇 Silent Mode"\n`;
+                //       successMsg += `⚠️ *IMPORTANT:* In SILENT mode:\n`;
+                // successMsg += `• Only you (the owner) can use commands\n`;
+                // successMsg += `• Others will receive no response\n`;
+                // successMsg += `• Menu will show "🔇 Silent Mode"\n`;
             } else {
-                successMsg += `✅ In PUBLIC mode:\n`;
-                successMsg += `• Everyone can use commands\n`;
-                successMsg += `• Menu will show "🌍 Public Mode"\n`;
+                // successMsg += `✅ In PUBLIC mode:\n`;
+                // successMsg += `• Everyone can use commands\n`;
+                // successMsg += `• Menu will show "🌍 Public Mode"\n`;
             }
             
-            successMsg += `\n🔧 Use ${PREFIX}menu to see the updated mode in the info section.`;
+           // successMsg += `\n🔧 Use ${PREFIX}menu to see the updated mode in the info section.`;
             
             await sock.sendMessage(chatId, {
                 text: successMsg

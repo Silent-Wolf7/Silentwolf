@@ -5039,8 +5039,8 @@ case 7: {
     
     // PERFORMANCE METRICS
     if (fieldsStatus.speed) {
-      infoLines.push(`┃ ⚡ Speed: ${commandSpeed}`);
-      infoLines.push(`┃ 🧠 CPU Load: ${cpuLoadBar} ${cpuLoad}`);
+      infoLines.push(`┃ Speed: ${commandSpeed}`);
+      infoLines.push(`┃ CPU Load: ${cpuLoadBar} ${cpuLoad}`);
     }
 
     if (fieldsStatus.uptime) infoLines.push(`┃ Uptime: ${uptimeStr}`);
