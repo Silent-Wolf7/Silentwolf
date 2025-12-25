@@ -4560,8 +4560,6 @@ case 6: {
 
 
 
-
-
 case 7: {
   // 🖼️ Full info + image + commands (with individual toggles)
   let finalCaption = "";
@@ -5003,8 +5001,15 @@ case 7: {
     const speed = (performance.now() - start).toFixed(2);
     const usedMem = (process.memoryUsage().rss / 1024 / 1024).toFixed(1);
     const totalMem = (os.totalmem() / 1024 / 1024 / 1024).toFixed(0);
-    const memPercent = Math.min(((usedMem / (totalMem * 1024)) * 100).toFixed(0), 100);
-    const memBar = "█".repeat(Math.floor(memPercent / 10)) + "░".repeat(10 - Math.floor(memPercent / 10));
+    
+    // SAFE CALCULATION: Prevent negative or invalid percentages
+    const memPercentNum = ((usedMem / (totalMem * 1024)) * 100);
+    const memPercent = Math.min(Math.max(parseFloat(memPercentNum.toFixed(0)), 0), 100);
+    
+    // SAFE BAR CALCULATION: Prevent negative repeat values
+    const filledBars = Math.max(Math.floor(memPercent / 10), 0);
+    const emptyBars = Math.max(10 - filledBars, 0);
+    const memBar = "█".repeat(filledBars) + "░".repeat(emptyBars);
     
     // Get Node.js version
     const nodeVersion = process.version;
@@ -5012,9 +5017,11 @@ case 7: {
     // Calculate command speed in milliseconds
     const commandSpeed = `${speed}ms`;
     
-    // Get CPU load
-    const cpuLoad = os.loadavg()[0].toFixed(2);
-    const cpuLoadBar = "█".repeat(Math.floor(cpuLoad)) + "░".repeat(5 - Math.floor(cpuLoad));
+    // Get CPU load with safe calculation
+    const cpuLoad = Math.min(parseFloat(os.loadavg()[0].toFixed(2)), 5);
+    const cpuLoadBars = Math.max(Math.floor(cpuLoad), 0);
+    const cpuLoadEmpty = Math.max(5 - cpuLoadBars, 0);
+    const cpuLoadBar = "█".repeat(cpuLoadBars) + "░".repeat(cpuLoadEmpty);
     
     const infoLines = [];
     
@@ -5324,7 +5331,7 @@ case 7: {
 └────────────────
 
 
-🐺🌕POWERED BY WOLFTECH🌕🐺
+🐺POWERED BY WOLFTECH🐺
 
 `;
 
@@ -5342,6 +5349,8 @@ case 7: {
   await sock.sendMessage(jid, { image: buffer, caption: finalCaption, mimetype: "image/jpeg" }, { quoted: m });
   break;
 }
+
+
 
 
 
