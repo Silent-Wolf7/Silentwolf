@@ -1535,23 +1535,20 @@ case 3: {
 
 
 
-
-
 case 5: {
   // 📝 Full info + commands (with individual toggles)
   let finalText = "";
   
-  // Add these helper functions (same as cases 6 & 7)
+  // Add these helper functions at the start of case 5 (same as case 7)
   const getBotMode = () => {
     try {
-      // Check multiple possible locations with priority order
       const possiblePaths = [
-        './bot_mode.json',  // Root directory (most likely)
-        path.join(__dirname, 'bot_mode.json'),  // Same directory as menu
-        path.join(__dirname, '../bot_mode.json'),  // Parent directory
-        path.join(__dirname, '../../bot_mode.json'),  // 2 levels up
-        path.join(__dirname, '../../../bot_mode.json'),  // 3 levels up
-        path.join(__dirname, '../commands/owner/bot_mode.json'),  // Owner commands directory
+        './bot_mode.json',
+        path.join(__dirname, 'bot_mode.json'),
+        path.join(__dirname, '../bot_mode.json'),
+        path.join(__dirname, '../../bot_mode.json'),
+        path.join(__dirname, '../../../bot_mode.json'),
+        path.join(__dirname, '../commands/owner/bot_mode.json'),
       ];
       
       for (const modePath of possiblePaths) {
@@ -1560,7 +1557,6 @@ case 5: {
             const modeData = JSON.parse(fs.readFileSync(modePath, 'utf8'));
             
             if (modeData.mode) {
-              // Format for display
               let displayMode;
               switch(modeData.mode.toLowerCase()) {
                 case 'public':
@@ -1569,15 +1565,21 @@ case 5: {
                 case 'silent':
                   displayMode = '🔇 Silent';
                   break;
+                case 'private':
+                  displayMode = '🔒 Private';
+                  break;
+                case 'group-only':
+                  displayMode = '👥 Group Only';
+                  break;
+                case 'maintenance':
+                  displayMode = '🛠️ Maintenance';
+                  break;
                 default:
                   displayMode = `⚙️ ${modeData.mode.charAt(0).toUpperCase() + modeData.mode.slice(1)}`;
               }
-              
               return displayMode;
             }
-          } catch (parseError) {
-            // Continue to next path
-          }
+          } catch (parseError) {}
         }
       }
       
@@ -1592,23 +1594,20 @@ case 5: {
         return process.env.BOT_MODE === 'silent' ? '🔇 Silent' : '🌍 Public';
       }
       
-    } catch (error) {
-      // Error handling
-    }
+    } catch (error) {}
     
-    return '🌍 Public'; // Default fallback
+    return '🌍 Public';
   };
   
   const getBotName = () => {
     try {
-      // Check multiple possible locations with priority order
       const possiblePaths = [
-        './bot_settings.json',  // Root directory (most likely)
-        path.join(__dirname, 'bot_settings.json'),  // Same directory as menu
-        path.join(__dirname, '../bot_settings.json'),  // Parent directory
-        path.join(__dirname, '../../bot_settings.json'),  // 2 levels up
-        path.join(__dirname, '../../../bot_settings.json'),  // 3 levels up
-        path.join(__dirname, '../commands/owner/bot_settings.json'),  // Owner commands directory
+        './bot_settings.json',
+        path.join(__dirname, 'bot_settings.json'),
+        path.join(__dirname, '../bot_settings.json'),
+        path.join(__dirname, '../../bot_settings.json'),
+        path.join(__dirname, '../../../bot_settings.json'),
+        path.join(__dirname, '../commands/owner/bot_settings.json'),
       ];
       
       for (const settingsPath of possiblePaths) {
@@ -1620,31 +1619,345 @@ case 5: {
             if (settings.botName && settings.botName.trim() !== '') {
               return settings.botName.trim();
             }
-          } catch (parseError) {
-            // Continue to next path
-          }
+          } catch (parseError) {}
         }
       }
       
-      // Fallback to global variables
       if (global.BOT_NAME) {
         return global.BOT_NAME;
       }
       
-      // Fallback to environment variable
       if (process.env.BOT_NAME) {
         return process.env.BOT_NAME;
       }
       
-    } catch (error) {
-      // Error handling
-    }
+    } catch (error) {}
     
-    return 'WOLFBOT'; // Default fallback
+    return 'WOLFBOT';
   };
   
-  // Load bot name using the helper function
+  const getOwnerName = () => {
+    try {
+      const botSettingsPaths = [
+        './bot_settings.json',
+        path.join(__dirname, 'bot_settings.json'),
+        path.join(__dirname, '../bot_settings.json'),
+        path.join(__dirname, '../../bot_settings.json'),
+      ];
+      
+      for (const settingsPath of botSettingsPaths) {
+        if (fs.existsSync(settingsPath)) {
+          try {
+            const settingsData = fs.readFileSync(settingsPath, 'utf8');
+            const settings = JSON.parse(settingsData);
+            
+            if (settings.ownerName && settings.ownerName.trim() !== '') {
+              return settings.ownerName.trim();
+            }
+          } catch (parseError) {}
+        }
+      }
+      
+      const ownerPath = path.join(__dirname, 'owner.json');
+      if (fs.existsSync(ownerPath)) {
+        const ownerData = fs.readFileSync(ownerPath, 'utf8');
+        const ownerInfo = JSON.parse(ownerData);
+        
+        if (ownerInfo.owner && ownerInfo.owner.trim() !== '') {
+          return ownerInfo.owner.trim();
+        } else if (ownerInfo.number && ownerInfo.number.trim() !== '') {
+          return ownerInfo.number.trim();
+        } else if (ownerInfo.phone && ownerInfo.phone.trim() !== '') {
+          return ownerInfo.phone.trim();
+        } else if (ownerInfo.contact && ownerInfo.contact.trim() !== '') {
+          return ownerInfo.contact.trim();
+        } else if (Array.isArray(ownerInfo) && ownerInfo.length > 0) {
+          const owner = typeof ownerInfo[0] === 'string' ? ownerInfo[0] : "Unknown";
+          return owner;
+        }
+      }
+      
+      if (global.OWNER_NAME) {
+        return global.OWNER_NAME;
+      }
+      if (global.owner) {
+        return global.owner;
+      }
+      if (process.env.OWNER_NUMBER) {
+        return process.env.OWNER_NUMBER;
+      }
+      
+    } catch (error) {}
+    
+    return 'Unknown';
+  };
+  
+  const getBotPrefix = () => {
+    try {
+      const botSettingsPaths = [
+        './bot_settings.json',
+        path.join(__dirname, 'bot_settings.json'),
+        path.join(__dirname, '../bot_settings.json'),
+        path.join(__dirname, '../../bot_settings.json'),
+      ];
+      
+      for (const settingsPath of botSettingsPaths) {
+        if (fs.existsSync(settingsPath)) {
+          try {
+            const settingsData = fs.readFileSync(settingsPath, 'utf8');
+            const settings = JSON.parse(settingsData);
+            
+            if (settings.prefix && settings.prefix.trim() !== '') {
+              return settings.prefix.trim();
+            }
+          } catch (parseError) {}
+        }
+      }
+      
+      if (global.prefix) {
+        return global.prefix;
+      }
+      
+      if (process.env.PREFIX) {
+        return process.env.PREFIX;
+      }
+      
+    } catch (error) {}
+    
+    return '.';
+  };
+  
+  const getBotVersion = () => {
+    try {
+      const ownerPath = path.join(__dirname, 'owner.json');
+      if (fs.existsSync(ownerPath)) {
+        const ownerData = fs.readFileSync(ownerPath, 'utf8');
+        const ownerInfo = JSON.parse(ownerData);
+        
+        if (ownerInfo.version && ownerInfo.version.trim() !== '') {
+          return ownerInfo.version.trim();
+        }
+      }
+      
+      const botSettingsPaths = [
+        './bot_settings.json',
+        path.join(__dirname, 'bot_settings.json'),
+        path.join(__dirname, '../bot_settings.json'),
+      ];
+      
+      for (const settingsPath of botSettingsPaths) {
+        if (fs.existsSync(settingsPath)) {
+          try {
+            const settingsData = fs.readFileSync(settingsPath, 'utf8');
+            const settings = JSON.parse(settingsData);
+            
+            if (settings.version && settings.version.trim() !== '') {
+              return settings.version.trim();
+            }
+          } catch (parseError) {}
+        }
+      }
+      
+      if (global.VERSION) {
+        return global.VERSION;
+      }
+      
+      if (global.version) {
+        return global.version;
+      }
+      
+      if (process.env.VERSION) {
+        return process.env.VERSION;
+      }
+      
+    } catch (error) {}
+    
+    return 'v1.0.0';
+  };
+  
+  const getDeploymentPlatform = () => {
+    // Detect deployment platform
+    if (process.env.REPL_ID || process.env.REPLIT_DB_URL) {
+      return {
+        name: 'Replit',
+        status: 'Active',
+        icon: '🌀'
+      };
+    } else if (process.env.HEROKU_APP_NAME) {
+      return {
+        name: 'Heroku',
+        status: 'Active',
+        icon: '🦸'
+      };
+    } else if (process.env.RENDER_SERVICE_ID) {
+      return {
+        name: 'Render',
+        status: 'Active',
+        icon: '⚡'
+      };
+    } else if (process.env.RAILWAY_ENVIRONMENT) {
+      return {
+        name: 'Railway',
+        status: 'Active',
+        icon: '🚂'
+      };
+    } else if (process.env.VERCEL) {
+      return {
+        name: 'Vercel',
+        status: 'Active',
+        icon: '▲'
+      };
+    } else if (process.env.GLITCH_PROJECT_REMIX) {
+      return {
+        name: 'Glitch',
+        status: 'Active',
+        icon: '🎏'
+      };
+    } else if (process.env.KOYEB) {
+      return {
+        name: 'Koyeb',
+        status: 'Active',
+        icon: '☁️'
+      };
+    } else if (process.env.CYCLIC_URL) {
+      return {
+        name: 'Cyclic',
+        status: 'Active',
+        icon: '🔄'
+      };
+    } else if (process.env.PANEL) {
+      return {
+        name: 'PteroPanel',
+        status: 'Active',
+        icon: '🖥️'
+      };
+    } else if (process.env.SSH_CONNECTION || process.env.SSH_CLIENT) {
+      return {
+        name: 'VPS/SSH',
+        status: 'Active',
+        icon: '🖥️'
+      };
+    } else if (process.platform === 'win32') {
+      return {
+        name: 'Windows PC',
+        status: 'Active',
+        icon: '💻'
+      };
+    } else if (process.platform === 'linux') {
+      return {
+        name: 'Linux VPS',
+        status: 'Active',
+        icon: '🐧'
+      };
+    } else if (process.platform === 'darwin') {
+      return {
+        name: 'MacOS',
+        status: 'Active',
+        icon: '🍎'
+      };
+    } else {
+      return {
+        name: 'Local Machine',
+        status: 'Active',
+        icon: '🏠'
+      };
+    }
+  };
+  
+  const getTimeZone = () => {
+    try {
+      // Try to get timezone from system
+      if (process.env.TZ) {
+        return process.env.TZ;
+      }
+      
+      // Try to detect from Intl
+      const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      if (timeZone) {
+        return timeZone;
+      }
+      
+      // Fallback based on environment
+      if (process.env.REPL_ID) {
+        return 'America/Los_Angeles'; // Replit default
+      } else if (process.env.HEROKU_APP_NAME) {
+        return 'UTC'; // Heroku default
+      } else if (process.env.RENDER) {
+        return 'UTC'; // Render default
+      }
+      
+    } catch (error) {}
+    
+    return 'UTC';
+  };
+  
+  const getCorePower = () => {
+    try {
+      const cpus = os.cpus();
+      if (cpus && cpus.length > 0) {
+        const model = cpus[0].model;
+        const cores = cpus.length;
+        const speed = cpus[0].speed;
+        
+        // Calculate performance score
+        let performance = 'Low';
+        let icon = '🐢';
+        
+        if (cores >= 8 && speed >= 3000) {
+          performance = 'Ultra';
+          icon = '🚀';
+        } else if (cores >= 4 && speed >= 2500) {
+          performance = 'High';
+          icon = '⚡';
+        } else if (cores >= 2 && speed >= 2000) {
+          performance = 'Medium';
+          icon = '⚙️';
+        }
+        
+        return {
+          cores: cores,
+          speed: `${(speed / 1000).toFixed(1)} GHz`,
+          performance: performance,
+          icon: icon,
+          model: model.length > 30 ? model.substring(0, 30) + '...' : model
+        };
+      }
+    } catch (error) {}
+    
+    return {
+      cores: 'N/A',
+      speed: 'N/A',
+      performance: 'Unknown',
+      icon: '❓',
+      model: 'Unknown CPU'
+    };
+  };
+  
+  // Get current time and date
+  const now = new Date();
+  const currentTime = now.toLocaleTimeString('en-US', { 
+    hour12: true, 
+    hour: '2-digit', 
+    minute: '2-digit',
+    second: '2-digit'
+  });
+  
+  const currentDate = now.toLocaleDateString('en-US', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  });
+  
+  // Load bot information using helper functions
   const botName = getBotName();
+  const ownerName = getOwnerName();
+  const botPrefix = getBotPrefix();
+  const botVersion = getBotVersion();
+  const botMode = getBotMode();
+  const deploymentPlatform = getDeploymentPlatform();
+  const timeZone = getTimeZone();
+  const corePower = getCorePower();
   
   // Add bot name header before the info section
   finalText += `> *🐺🌕 *${botName}* 🌕🐺*\n`;
@@ -1661,58 +1974,74 @@ case 5: {
     const speed = (performance.now() - start).toFixed(2);
     const usedMem = (process.memoryUsage().rss / 1024 / 1024).toFixed(1);
     const totalMem = (os.totalmem() / 1024 / 1024 / 1024).toFixed(0);
-    const memPercent = Math.min(((usedMem / (totalMem * 1024)) * 100).toFixed(0), 100);
-    const memBar = "█".repeat(Math.floor(memPercent / 10)) + "░".repeat(10 - Math.floor(memPercent / 10));
-
-    // Load owner from owner.json file (improved version)
-    let ownerNumber = "Unknown";
-    try {
-      const ownerPath = path.join(__dirname, 'owner.json');
-      if (fs.existsSync(ownerPath)) {
-        const ownerData = fs.readFileSync(ownerPath, 'utf8');
-        const ownerInfo = JSON.parse(ownerData);
-        
-        // Try different possible field names in owner.json
-        if (ownerInfo.owner && ownerInfo.owner.trim() !== '') {
-          ownerNumber = ownerInfo.owner.trim();
-        } else if (ownerInfo.number && ownerInfo.number.trim() !== '') {
-          ownerNumber = ownerInfo.number.trim();
-        } else if (ownerInfo.phone && ownerInfo.phone.trim() !== '') {
-          ownerNumber = ownerInfo.phone.trim();
-        } else if (ownerInfo.contact && ownerInfo.contact.trim() !== '') {
-          ownerNumber = ownerInfo.contact.trim();
-        } else if (Array.isArray(ownerInfo) && ownerInfo.length > 0) {
-          // If it's an array, take the first one
-          ownerNumber = typeof ownerInfo[0] === 'string' ? ownerInfo[0] : "Unknown";
-        }
-      }
-    } catch (ownerError) {
-      // Fallback to environment variable or global
-      ownerNumber = global.owner || process.env.OWNER_NUMBER || "Unknown";
+    
+    // SAFE CALCULATION: Prevent negative or invalid percentages
+    const memPercentNum = ((usedMem / (totalMem * 1024)) * 100);
+    const memPercent = Math.min(Math.max(parseFloat(memPercentNum.toFixed(0)), 0), 100);
+    
+    // SAFE BAR CALCULATION: Prevent negative repeat values
+    const filledBars = Math.max(Math.floor(memPercent / 10), 0);
+    const emptyBars = Math.max(10 - filledBars, 0);
+    const memBar = "█".repeat(filledBars) + "░".repeat(emptyBars);
+    
+    // Get Node.js version
+    const nodeVersion = process.version;
+    
+    // Calculate command speed in milliseconds
+    const commandSpeed = `${speed}ms`;
+    
+    // Get CPU load with safe calculation
+    const cpuLoad = Math.min(parseFloat(os.loadavg()[0].toFixed(2)), 5);
+    const cpuLoadBars = Math.max(Math.floor(cpuLoad), 0);
+    const cpuLoadEmpty = Math.max(5 - cpuLoadBars, 0);
+    const cpuLoadBar = "█".repeat(cpuLoadBars) + "░".repeat(cpuLoadEmpty);
+    
+    const infoLines = [];
+    
+    // TIME & DATE SECTION
+    if (fieldsStatus.time || fieldsStatus.date) {
+      infoLines.push(`> ┃ Date: ${currentDate}`);
+      infoLines.push(`> ┃ Time: ${currentTime}`);
+    }
+    
+    // SYSTEM INFO SECTION
+    if (fieldsStatus.user) infoLines.push(`> ┃ User: ${m.pushName || "Anonymous"}`);
+    if (fieldsStatus.owner) infoLines.push(`> ┃ Owner: ${ownerName}`);
+    if (fieldsStatus.mode) infoLines.push(`> ┃ Mode: ${botMode}`);
+    if (fieldsStatus.prefix) infoLines.push(`> ┃ Prefix: [ ${botPrefix} ]`);
+    if (fieldsStatus.version) infoLines.push(`> ┃ Version: ${botVersion}`);
+    
+    // DEPLOYMENT & PLATFORM
+    if (fieldsStatus.host) {
+      infoLines.push(`> ┃ Panel: ${deploymentPlatform.name}`);
+      infoLines.push(`> ┃ Status: ${deploymentPlatform.status}`);
+    }
+    
+    // PERFORMANCE METRICS
+    if (fieldsStatus.speed) {
+      infoLines.push(`> ┃ Speed: ${commandSpeed}`);
+      infoLines.push(`> ┃ CPU Load: ${cpuLoadBar} ${cpuLoad}`);
     }
 
-    // Load bot mode using the helper function
-    const botMode = getBotMode();
+    if (fieldsStatus.uptime) infoLines.push(`> ┃ Uptime: ${uptimeStr}`);
+    if (fieldsStatus.usage) infoLines.push(`> ┃ Usage: ${usedMem} MB of ${totalMem} GB`);
+    if (fieldsStatus.ram) infoLines.push(`> ┃ RAM: ${memBar} ${memPercent}%`);
 
-    const host = process.env.REPL_ID ? "Replit" : process.env.HEROKU_APP_NAME ? "Heroku" : process.env.RENDER ? "Render" : "Panel";
-    const prefix = global.prefix || ".";
-    const version = global.version || "v2.6.2";
-
-    const infoLines = [];
-    // Bot name is already in the header, so we don't duplicate it here
-    if (fieldsStatus.user) infoLines.push(`┃ User: ${m.pushName || "Anonymous"}`);
-    if (fieldsStatus.owner) infoLines.push(`┃ Owner: ${ownerNumber}`);
-    if (fieldsStatus.mode) infoLines.push(`┃ Mode: ${botMode}`);  // Use the loaded botMode
-    if (fieldsStatus.host) infoLines.push(`┃ Host: ${host}`);
-    if (fieldsStatus.speed) infoLines.push(`┃ Speed: ${speed} ms`);
-    if (fieldsStatus.prefix) infoLines.push(`┃ Prefix: [ ${prefix} ]`);
-    if (fieldsStatus.uptime) infoLines.push(`┃ Uptime: ${uptimeStr}`);
-    if (fieldsStatus.version) infoLines.push(`┃ Version: ${version}`);
-    if (fieldsStatus.usage) infoLines.push(`┃ Usage: ${usedMem} MB of ${totalMem} GB`);
-    if (fieldsStatus.ram) infoLines.push(`┃ RAM: ${memBar} ${memPercent}%`);
+    // CORE POWER (HARDWARE INFO)
+    if (fieldsStatus.ram || fieldsStatus.usage) { // Reuse existing toggles for core power
+      infoLines.push(`> ┃ ${corePower.icon} Cores: ${corePower.cores} @ ${corePower.speed}`);
+      infoLines.push(`> ┃ Power: ${corePower.performance} Performance`);
+      infoLines.push(`> ┃ CPU: ${corePower.model}`);
+    }
+    
+    // NODE & TECH STACK
+    if (fieldsStatus.version) { // Reuse version toggle for Node info
+      infoLines.push(`> ┃ Node: ${nodeVersion}`);
+      infoLines.push(`> ┃ Timezone: ${timeZone}`);
+    }
 
     if (infoLines.length > 0) {
-      const infoText = `> ┌────────────────\n${infoLines.map(line => `> ${line}`).join('\n')}\n> └────────────────\n`;
+      const infoText = `> ┌────────────────\n${infoLines.join('\n')}\n> └────────────────\n`;
       finalText += infoText;
     }
   }
@@ -1726,25 +2055,32 @@ case 5: {
 > │ • promote                 
 > │ • demote                  
 > │ • kick                    
+> │ • kickall                 
 > │ • ban                     
 > │ • unban                   
 > │ • banlist                 
 > │ • clearbanlist            
 > │ • warn                    
-> │ • unwarn                  
-> │ • clearwarns              
+> │ • resetwarn               
+> │ • setwarn                 
 > │ • mute                    
 > │ • unmute                  
 > │ • gctime                  
-> │ • lock                    
-> │ • unlock                  
+> │ • antileave               
+> │ • antilink                
+> │ • welcome                 
 > ├────────────────
 > │ 🚫 *AUTO-MODERATION* 🚫   
 > ├────────────────
-> │ • antilink               
-> │ • antisticker            
-> │ • antiimage              
-> │ • antivideo             
+> │ • antisticker             
+> │ • antiviewonce  
+> │ • antilink  
+> │ • antiimage
+> │ • antivideo
+> │ • antiaudio
+> │ • antimention
+> │ • antistatusmention  
+> │ • antigrouplink
 > ├────────────────
 > │ 📊 *GROUP INFO & TOOLS* 📊 
 > ├────────────────
@@ -1755,13 +2091,18 @@ case 5: {
 > │ • link                    
 > │ • invite                  
 > │ • revoke                  
-> │ • setname                 
 > │ • setdesc                 
-> │ • setgcpp                 
-> │ • welcome                 
-> │ • goodbye                 
 > │ • fangtrace               
-> │ • disp                    
+> │ • getgpp                  
+> └────────────────
+
+> ┌────────────────
+> │ 🎨 *MENU COMMANDS* 🎨
+> ├────────────────
+> │ • togglemenuinfo
+> │ • setmenuimage
+> │ • resetmenuinfo
+> │ • menustyle
 > └────────────────
 
 > ┌────────────────
@@ -1769,72 +2110,92 @@ case 5: {
 > ├────────────────
 > │ ⚡ *CORE MANAGEMENT* ⚡    
 > ├────────────────
+> │ • setbotname              
+> │ • setowner                
 > │ • setprefix               
-> │ • setantilink             
+> │ • iamowner                
+> │ • about                   
 > │ • block                   
 > │ • unblock                 
+> │ • blockdetect             
 > │ • silent                  
-> │ • default                 
-> │ • runcode                 
+> │ • anticall                
+> │ • mode                    
+> │ • online                  
+> │ • setpp                   
+> │ • repo                    
 > ├────────────────
 > │ 🔄 *SYSTEM & MAINTENANCE* 🛠️ 
 > ├────────────────
 > │ • restart                 
-> │ • update                  
-> │ • gcrestart               
-> │ • backup                  
-> │ • restore                 
-> │ • cleardb                 
-> │ • cleartemp               
+> │ • workingreload           
+> │ • reloadenv               
+> │ • getsettings             
+> │ • setsetting              
+> │ • test                    
+> │ • disk                    
+> │ • hostip                  
+> │ • findcommands            
 > └────────────────
 
 > ┌────────────────
-> │ ✨ *GENERAL UTILITIES* ✨  
+> │ ⚙️ *AUTOMATION* ⚙️
 > ├────────────────
-> │ 🔍 *INFO & SEARCH* 🔎     
-> ├────────────────
-> │ • ping                    
-> │ • time                    
-> │ • calc                    
-> │ • define                  
-> │ • dictionary              
-> │ • wiki                    
-> │ • news                    
-> │ • weather                 
-> │ • covid                   
-> │ • stock                   
-> │ • currency               
-> ├───────────────
-> │ 🔗 *CONVERSION & MEDIA* 📁 
-> ├───────────────
-> │ • translate               
-> │ • convert                 
-> │ • shorturl                
-> │ • expandurl               
-> │ • qrencode                
-> │ • qrdecode                
-> │ • reverseimage            
-> │ • tomp3                   
-> │ • tovideo                 
-> │ • tosticker               
-> ├───────────────
-> │ 📝 *PERSONAL TOOLS* 📅    
-> ├───────────────
-> │ • reminder                
-> │ • todo                   
-> └───────────────
+> │ • autoread                
+> │ • autotyping              
+> │ • autorecording           
+> │ • autoreact               
+> │ • autoreactstatus         
+> │ • autobio                 
+> │ • autorec                 
+> └────────────────
 
+> ┌────────────────
+> │ ✨ *GENERAL UTILITIES* ✨
 > ├────────────────
-> │ 🎵 *MUSIC & FUN* 🎶
+> │ 🔍 *INFO & SEARCH* 🔎
 > ├────────────────
-> │ • play
-> │ • song
-> │ • lyrics
-> │ • spotify
-> │ • video
-> │ • video2
-> │ • bassboost
-> │ • trebleboost
+> │ • alive
+> │ • ping
+> │ • ping2
+> │ • time
+> │ • connection
+> │ • define
+> │ • news
+> │ • covid
+> │ • iplookup
+> │ • getip
+> │ • getpp
+> │ • getgpp
+> │ • prefixinfo
+> ├───────────────
+> │ 🔗 *CONVERSION & MEDIA* 📁
+> ├───────────────
+> │ • shorturl
+> │ • qrencode
+> │ • take
+> │ • imgbb
+> │ • tiktok
+> │ • save
+> ├───────────────
+> │ 📝 *PERSONAL TOOLS* 📅
+> ├───────────────
+> │ • pair
+> │ • resetwarn
+> │ • setwarn
+> └────────────────
+
+> ┌────────────────
+> │ 🎵 *MUSIC & MEDIA* 🎶
+> ├────────────────
+> │ • play                    
+> │ • song                    
+> │ • lyrics                  
+> │ • spotify                 
+> │ • video                   
+> │ • video2                  
+> │ • bassboost               
+> │ • trebleboost             
 > └────────────────
 
 > ┌───────────────
@@ -1842,22 +2203,33 @@ case 5: {
 > ├───────────────
 > │ ⬇️ *MEDIA DOWNLOADS* 📥     
 > ├───────────────
-> │ • ytdl                    
-> │ • spotifydl               
-> │ • tiktokdl                
-> │ • instadl                 
-> │ • twitterdl               
-> │ • mediafire               
+> │ • youtube                 
+> │ • tiktok                 
+> │ • instagram               
+> │ • facebook                
+> │ • snapchat                
+> │ • apk                     
 > ├───────────────
 > │ 🎨 *AI GENERATION* 💡    
 > ├───────────────
-> │ • gemini                  
 > │ • gpt                     
+> │ • gemini                  
 > │ • deepseek                
-> │ • chat                    
-> │ • summary                 
-> │ • imagine                 
-> │ • dalle                   
+> │ • deepseek+               
+> │ • analyze                 
+> │ • suno                    
+> │ • wolfbot                 
+> │ • videogen                
+> └───────────────
+
+> ┌───────────────
+> │ 🖼️ *IMAGE TOOLS* 🖼️
+> ├───────────────
+> │ • image                   
+> │ • imagegenerate           
+> │ • anime                   
+> │ • art                     
+> │ • real                    
 > └───────────────
 
 > ┌───────────────
@@ -1865,27 +2237,98 @@ case 5: {
 > ├───────────────
 > │ 🌐 *NETWORK & INFO* 📡   
 > ├───────────────
-> │ • ipinfo              
-> │ • whois               
-> │ • dnslookup          
-> │ • host               
-> │ • reverseip           
-> │ • ssllabs             
-> │ • shodan              
+> │ • ipinfo                  
+> │ • shodan                  
+> │ • iplookup                
+> │ • getip                   
+> └───────────────
+
+> ┌────────────────
+> │ 🎨 *LOGO DESIGN STUDIO* 🎨
 > ├────────────────
-> │ 🔑 *VULNERABILITY & SCAN* ⚙️ 
+> │ 🌟 *PREMIUM METALS* 🌟    
 > ├────────────────
-> │ • pwcheck             
-> │ • breach              
-> │ • portscan            
-> │ • httpheaders         
-> │ • subdomains          
-> │ • encode              
-> │ • decode              
-> │ • consent             
-> │ • scan-now            
-> │ • scan-status         
-> │ • security-tips       
+> │ • goldlogo                
+> │ • silverlogo              
+> │ • platinumlogo            
+> │ • chromelogo              
+> │ • diamondlogo             
+> │ • bronzelogo              
+> │ • steelogo                
+> │ • copperlogo              
+> │ • titaniumlogo            
+> ├────────────────
+> │ 🔥 *ELEMENTAL EFFECTS* 🔥  
+> ├────────────────
+> │ • firelogo                
+> │ • icelogo                 
+> │ • iceglowlogo             
+> │ • lightninglogo           
+> │ • aqualogo                
+> │ • rainbowlogo             
+> │ • sunlogo                 
+> │ • moonlogo                
+> ├────────────────
+> │ 🎭 *MYTHICAL & MAGICAL* 🧙  
+> ├────────────────
+> │ • dragonlogo              
+> │ • phoenixlogo             
+> │ • wizardlogo              
+> │ • crystallogo             
+> │ • darkmagiclogo           
+> ├────────────────
+> │ 🌌 *DARK & GOTHIC* 🌑     
+> ├────────────────
+> │ • shadowlogo              
+> │ • smokelogo               
+> │ • bloodlogo               
+> ├────────────────
+> │ 💫 *GLOW & NEON EFFECTS* 🌈  
+> ├────────────────
+> │ • neonlogo                
+> │ • glowlogo                
+> ├────────────────
+> │ 🤖 *TECH & FUTURISTIC* 🚀  
+> ├────────────────
+> │ • matrixlogo              
+> └────────────────
+
+> ┌────────────────
+> │ 🐙 *GITHUB COMMANDS* 🐙
+> ├────────────────
+> │ • gitclone
+> │ • gitinfo
+> │ • repo
+> │ • commits
+> │ • stars
+> │ • watchers
+> │ • release
+> └────────────────
+
+> ┌────────────────
+> │ 🌸 *ANIME COMMANDS* 🌸
+> ├────────────────
+> │ • awoo
+> │ • bj
+> │ • bully
+> │ • cringe
+> │ • cry
+> │ • cuddle
+> │ • dance
+> │ • glomp
+> │ • highfive
+> │ • kill
+> │ • kiss
+> │ • lick
+> │ • megumin
+> │ • neko
+> │ • pat
+> │ • shinobu
+> │ • trap
+> │ • trap2
+> │ • waifu
+> │ • wink
+> │ • yeet
 > └────────────────
 
 > 🐺🌕*POWERED BY WOLF TECH*🌕🐺
@@ -1906,247 +2349,20 @@ case 5: {
 
 
 
-
-//         case 6: {
-//           // 🖼️ Full info + image + commands (with individual toggles)
-//           let finalCaption = "";
-          
-//           // Add info section only if any field is enabled
-//           const fieldsStatus = getAllFieldsStatus(style);
-//           if (fieldsStatus && Object.values(fieldsStatus).some(val => val)) {
-//             const start = performance.now();
-//             const uptime = process.uptime();
-//             const h = Math.floor(uptime / 3600);
-//             const mnt = Math.floor((uptime % 3600) / 60);
-//             const s = Math.floor(uptime % 60);
-//             const uptimeStr = `${h}h ${mnt}m ${s}s`;
-//             const speed = (performance.now() - start).toFixed(2);
-//             const usedMem = (process.memoryUsage().rss / 1024 / 1024).toFixed(1);
-//             const totalMem = (os.totalmem() / 1024 / 1024 / 1024).toFixed(0);
-//             const memPercent = Math.min(((usedMem / (totalMem * 1024)) * 100).toFixed(0), 100);
-//             const memBar = "█".repeat(Math.floor(memPercent / 10)) + "░".repeat(10 - Math.floor(memPercent / 10));
-
-//             const ownerNumber = global.owner || process.env.OWNER_NUMBER || "Unknown";
-//             const host = process.env.REPL_ID ? "Replit" : process.env.HEROKU_APP_NAME ? "Heroku" : process.env.RENDER ? "Render" : "Panel";
-//             const prefix = global.prefix || ".";
-//             const version = global.version || "v2.6.2";
-
-//             const infoLines = [];
-//             if (fieldsStatus.user) infoLines.push(`┃ User: ${m.pushName || "Anonymous"}`);
-//             if (fieldsStatus.owner) infoLines.push(`┃ Owner: ${ownerNumber}`);
-//             if (fieldsStatus.mode) infoLines.push(`┃ Mode: ${global.mode || "private"}`);
-//             if (fieldsStatus.host) infoLines.push(`┃ Host: ${host}`);
-//             if (fieldsStatus.speed) infoLines.push(`┃ Speed: ${speed} ms`);
-//             if (fieldsStatus.prefix) infoLines.push(`┃ Prefix: [ ${prefix} ]`);
-//             if (fieldsStatus.uptime) infoLines.push(`┃ Uptime: ${uptimeStr}`);
-//             if (fieldsStatus.version) infoLines.push(`┃ Version: ${version}`);
-//             if (fieldsStatus.usage) infoLines.push(`┃ Usage: ${usedMem} MB of ${totalMem} GB`);
-//             if (fieldsStatus.ram) infoLines.push(`┃ RAM: ${memBar} ${memPercent}%`);
-
-//             if (infoLines.length > 0) {
-//               const infoCaption = `────────────────\n${infoLines.join('\n')}\n└────────────────\n`;
-//               finalCaption += infoCaption;
-//             }
-//           }
-
-//           const commandsText = `> *🐺🌕 *WOLF BOT* 🌕🐺*
-// > ┌────────────────
-// > │ 🏠 *GROUP MANAGEMENT* 🏠 
-// > ├────────────────
-// > │ 🛡️ *ADMIN & MODERATION* 🛡️ 
-// > ├────────────────
-// > │ • add                     
-// > │ • promote                 
-// > │ • demote                  
-// > │ • kick                    
-// > │ • ban                     
-// > │ • unban                   
-// > │ • banlist                 
-// > │ • clearbanlist            
-// > │ • warn                    
-// > │ • unwarn                  
-// > │ • clearwarns              
-// > │ • mute                    
-// > │ • unmute                  
-// > │ • gctime                  
-// > │ • lock                    
-// > │ • unlock                  
-// > ├────────────────
-// > │ 🚫 *AUTO-MODERATION* 🚫   
-// > ├────────────────
-// > │ • antilink               
-// > │ • antisticker            
-// > │ • antiimage              
-// > │ • antivideo             
-// > ├────────────────
-// > │ 📊 *GROUP INFO & TOOLS* 📊 
-// > ├────────────────
-// > │ • groupinfo               
-// > │ • tagadmin                
-// > │ • tagall                  
-// > │ • hidetag                 
-// > │ • link                    
-// > │ • invite                  
-// > │ • revoke                  
-// > │ • setname                 
-// > │ • setdesc                 
-// > │ • setgcpp                 
-// > │ • welcome                 
-// > │ • goodbye                 
-// > │ • fangtrace               
-// > │ • disp                    
-// > └────────────────
-
-// > ┌────────────────
-// > │ 👑 *OWNER CONTROLS* 👑    
-// > ├────────────────
-// > │ ⚡ *CORE MANAGEMENT* ⚡    
-// > ├────────────────
-// > │ • setprefix               
-// > │ • setantilink             
-// > │ • block                   
-// > │ • unblock                 
-// > │ • silent                  
-// > │ • default                 
-// > │ • runcode                 
-// > ├────────────────
-// > │ 🔄 *SYSTEM & MAINTENANCE* 🛠️ 
-// > ├────────────────
-// > │ • restart                 
-// > │ • update                  
-// > │ • gcrestart               
-// > │ • backup                  
-// > │ • restore                 
-// > │ • cleardb                 
-// > │ • cleartemp               
-// > └────────────────
-
-// > ┌────────────────
-// > │ ✨ *GENERAL UTILITIES* ✨  
-// > ├────────────────
-// > │ 🔍 *INFO & SEARCH* 🔎     
-// > ├────────────────
-// > │ • ping                    
-// > │ • time                    
-// > │ • calc                    
-// > │ • define                  
-// > │ • dictionary              
-// > │ • wiki                    
-// > │ • news                    
-// > │ • weather                 
-// > │ • covid                   
-// > │ • stock                   
-// > │ • currency               
-// > ├───────────────
-// > │ 🔗 *CONVERSION & MEDIA* 📁 
-// > ├───────────────
-// > │ • translate               
-// > │ • convert                 
-// > │ • shorturl                
-// > │ • expandurl               
-// > │ • qrencode                
-// > │ • qrdecode                
-// > │ • reverseimage            
-// > │ • tomp3                   
-// > │ • tovideo                 
-// > │ • tosticker               
-// > ├───────────────
-// > │ 📝 *PERSONAL TOOLS* 📅    
-// > ├───────────────
-// > │ • reminder                
-// > │ • todo                   
-// > └───────────────
-// > 
-// > ├────────────────
-// > │ 🎵 *MUSIC & FUN* 🎶
-// > ├────────────────
-// > │ • play
-
-
-// > ┌───────────────
-// > │ 🤖 *MEDIA & AI COMMANDS* 🧠 
-// > ├───────────────
-// > │ ⬇️ *MEDIA DOWNLOADS* 📥     
-// > ├───────────────
-// > │ • ytdl                    
-// > │ • spotifydl               
-// > │ • tiktokdl                
-// > │ • instadl                 
-// > │ • twitterdl               
-// > │ • mediafire               
-// > ├───────────────
-// > │ 🎨 *AI GENERATION* 💡    
-// > ├───────────────
-// > │ • gemini                  
-// > │ • gpt                     
-// > │ • deepseek                
-// > │ • chat                    
-// > │ • summary                 
-// > │ • imagine                 
-// > │ • dalle                   
-// > └───────────────
-
-// > ┌───────────────
-// > │ 🛡️ *SECURITY & HACKING* 🔒 
-// > ├───────────────
-// > │ 🌐 *NETWORK & INFO* 📡   
-// > ├───────────────
-// > │ • ipinfo              
-// > │ • whois               
-// > │ • dnslookup          
-// > │ • host               
-// > │ • reverseip           
-// > │ • ssllabs             
-// > │ • shodan              
-// > ├────────────────
-// > │ 🔑 *VULNERABILITY & SCAN* ⚙️ 
-// > ├────────────────
-// > │ • pwcheck             
-// > │ • breach              
-// > │ • portscan            
-// > │ • httpheaders         
-// > │ • subdomains          
-// > │ • encode              
-// > │ • decode              
-// > │ • consent             
-// > │ • scan-now            
-// > │ • scan-status         
-// > │ • security-tips       
-// > └────────────────
-
-// > 🐺🌕*POWERED BY WOLF TECH*🌕🐺
-// `;
-
-//           finalCaption += commandsText;
-
-//           const imgPath1 = path.join(__dirname, "media", "wolfbot.jpg");
-//           const imgPath2 = path.join(__dirname, "../media/wolfbot.jpg");
-//           const imagePath = fs.existsSync(imgPath1) ? imgPath1 : fs.existsSync(imgPath2) ? imgPath2 : null;
-//           if (!imagePath) {
-//             await sock.sendMessage(jid, { text: "⚠️ Image 'wolfbot.jpg' not found!" }, { quoted: m });
-//             return;
-//           }
-//           const buffer = fs.readFileSync(imagePath);
-
-//           await sock.sendMessage(jid, { image: buffer, caption: finalCaption, mimetype: "image/jpeg" }, { quoted: m });
-//           break;
-//         }
-
 case 6: {
   // 🖼️ Full info + image + commands (with individual toggles)
   let finalCaption = "";
   
-  // Add these helper functions (same as case 7)
+  // Add these helper functions at the start of case 6 (same as case 7)
   const getBotMode = () => {
     try {
-      // Check multiple possible locations with priority order
       const possiblePaths = [
-        './bot_mode.json',  // Root directory (most likely)
-        path.join(__dirname, 'bot_mode.json'),  // Same directory as menu
-        path.join(__dirname, '../bot_mode.json'),  // Parent directory
-        path.join(__dirname, '../../bot_mode.json'),  // 2 levels up
-        path.join(__dirname, '../../../bot_mode.json'),  // 3 levels up
-        path.join(__dirname, '../commands/owner/bot_mode.json'),  // Owner commands directory
+        './bot_mode.json',
+        path.join(__dirname, 'bot_mode.json'),
+        path.join(__dirname, '../bot_mode.json'),
+        path.join(__dirname, '../../bot_mode.json'),
+        path.join(__dirname, '../../../bot_mode.json'),
+        path.join(__dirname, '../commands/owner/bot_mode.json'),
       ];
       
       for (const modePath of possiblePaths) {
@@ -2155,7 +2371,6 @@ case 6: {
             const modeData = JSON.parse(fs.readFileSync(modePath, 'utf8'));
             
             if (modeData.mode) {
-              // Format for display
               let displayMode;
               switch(modeData.mode.toLowerCase()) {
                 case 'public':
@@ -2164,15 +2379,21 @@ case 6: {
                 case 'silent':
                   displayMode = '🔇 Silent';
                   break;
+                case 'private':
+                  displayMode = '🔒 Private';
+                  break;
+                case 'group-only':
+                  displayMode = '👥 Group Only';
+                  break;
+                case 'maintenance':
+                  displayMode = '🛠️ Maintenance';
+                  break;
                 default:
                   displayMode = `⚙️ ${modeData.mode.charAt(0).toUpperCase() + modeData.mode.slice(1)}`;
               }
-              
               return displayMode;
             }
-          } catch (parseError) {
-            // Continue to next path
-          }
+          } catch (parseError) {}
         }
       }
       
@@ -2187,23 +2408,20 @@ case 6: {
         return process.env.BOT_MODE === 'silent' ? '🔇 Silent' : '🌍 Public';
       }
       
-    } catch (error) {
-      // Error handling
-    }
+    } catch (error) {}
     
-    return '🌍 Public'; // Default fallback
+    return '🌍 Public';
   };
   
   const getBotName = () => {
     try {
-      // Check multiple possible locations with priority order
       const possiblePaths = [
-        './bot_settings.json',  // Root directory (most likely)
-        path.join(__dirname, 'bot_settings.json'),  // Same directory as menu
-        path.join(__dirname, '../bot_settings.json'),  // Parent directory
-        path.join(__dirname, '../../bot_settings.json'),  // 2 levels up
-        path.join(__dirname, '../../../bot_settings.json'),  // 3 levels up
-        path.join(__dirname, '../commands/owner/bot_settings.json'),  // Owner commands directory
+        './bot_settings.json',
+        path.join(__dirname, 'bot_settings.json'),
+        path.join(__dirname, '../bot_settings.json'),
+        path.join(__dirname, '../../bot_settings.json'),
+        path.join(__dirname, '../../../bot_settings.json'),
+        path.join(__dirname, '../commands/owner/bot_settings.json'),
       ];
       
       for (const settingsPath of possiblePaths) {
@@ -2215,31 +2433,345 @@ case 6: {
             if (settings.botName && settings.botName.trim() !== '') {
               return settings.botName.trim();
             }
-          } catch (parseError) {
-            // Continue to next path
-          }
+          } catch (parseError) {}
         }
       }
       
-      // Fallback to global variables
       if (global.BOT_NAME) {
         return global.BOT_NAME;
       }
       
-      // Fallback to environment variable
       if (process.env.BOT_NAME) {
         return process.env.BOT_NAME;
       }
       
-    } catch (error) {
-      // Error handling
-    }
+    } catch (error) {}
     
-    return 'WOLFBOT'; // Default fallback
+    return 'WOLFBOT';
   };
   
-  // Load bot name using the helper function
+  const getOwnerName = () => {
+    try {
+      const botSettingsPaths = [
+        './bot_settings.json',
+        path.join(__dirname, 'bot_settings.json'),
+        path.join(__dirname, '../bot_settings.json'),
+        path.join(__dirname, '../../bot_settings.json'),
+      ];
+      
+      for (const settingsPath of botSettingsPaths) {
+        if (fs.existsSync(settingsPath)) {
+          try {
+            const settingsData = fs.readFileSync(settingsPath, 'utf8');
+            const settings = JSON.parse(settingsData);
+            
+            if (settings.ownerName && settings.ownerName.trim() !== '') {
+              return settings.ownerName.trim();
+            }
+          } catch (parseError) {}
+        }
+      }
+      
+      const ownerPath = path.join(__dirname, 'owner.json');
+      if (fs.existsSync(ownerPath)) {
+        const ownerData = fs.readFileSync(ownerPath, 'utf8');
+        const ownerInfo = JSON.parse(ownerData);
+        
+        if (ownerInfo.owner && ownerInfo.owner.trim() !== '') {
+          return ownerInfo.owner.trim();
+        } else if (ownerInfo.number && ownerInfo.number.trim() !== '') {
+          return ownerInfo.number.trim();
+        } else if (ownerInfo.phone && ownerInfo.phone.trim() !== '') {
+          return ownerInfo.phone.trim();
+        } else if (ownerInfo.contact && ownerInfo.contact.trim() !== '') {
+          return ownerInfo.contact.trim();
+        } else if (Array.isArray(ownerInfo) && ownerInfo.length > 0) {
+          const owner = typeof ownerInfo[0] === 'string' ? ownerInfo[0] : "Unknown";
+          return owner;
+        }
+      }
+      
+      if (global.OWNER_NAME) {
+        return global.OWNER_NAME;
+      }
+      if (global.owner) {
+        return global.owner;
+      }
+      if (process.env.OWNER_NUMBER) {
+        return process.env.OWNER_NUMBER;
+      }
+      
+    } catch (error) {}
+    
+    return 'Unknown';
+  };
+  
+  const getBotPrefix = () => {
+    try {
+      const botSettingsPaths = [
+        './bot_settings.json',
+        path.join(__dirname, 'bot_settings.json'),
+        path.join(__dirname, '../bot_settings.json'),
+        path.join(__dirname, '../../bot_settings.json'),
+      ];
+      
+      for (const settingsPath of botSettingsPaths) {
+        if (fs.existsSync(settingsPath)) {
+          try {
+            const settingsData = fs.readFileSync(settingsPath, 'utf8');
+            const settings = JSON.parse(settingsData);
+            
+            if (settings.prefix && settings.prefix.trim() !== '') {
+              return settings.prefix.trim();
+            }
+          } catch (parseError) {}
+        }
+      }
+      
+      if (global.prefix) {
+        return global.prefix;
+      }
+      
+      if (process.env.PREFIX) {
+        return process.env.PREFIX;
+      }
+      
+    } catch (error) {}
+    
+    return '.';
+  };
+  
+  const getBotVersion = () => {
+    try {
+      const ownerPath = path.join(__dirname, 'owner.json');
+      if (fs.existsSync(ownerPath)) {
+        const ownerData = fs.readFileSync(ownerPath, 'utf8');
+        const ownerInfo = JSON.parse(ownerData);
+        
+        if (ownerInfo.version && ownerInfo.version.trim() !== '') {
+          return ownerInfo.version.trim();
+        }
+      }
+      
+      const botSettingsPaths = [
+        './bot_settings.json',
+        path.join(__dirname, 'bot_settings.json'),
+        path.join(__dirname, '../bot_settings.json'),
+      ];
+      
+      for (const settingsPath of botSettingsPaths) {
+        if (fs.existsSync(settingsPath)) {
+          try {
+            const settingsData = fs.readFileSync(settingsPath, 'utf8');
+            const settings = JSON.parse(settingsData);
+            
+            if (settings.version && settings.version.trim() !== '') {
+              return settings.version.trim();
+            }
+          } catch (parseError) {}
+        }
+      }
+      
+      if (global.VERSION) {
+        return global.VERSION;
+      }
+      
+      if (global.version) {
+        return global.version;
+      }
+      
+      if (process.env.VERSION) {
+        return process.env.VERSION;
+      }
+      
+    } catch (error) {}
+    
+    return 'v1.0.0';
+  };
+  
+  const getDeploymentPlatform = () => {
+    // Detect deployment platform
+    if (process.env.REPL_ID || process.env.REPLIT_DB_URL) {
+      return {
+        name: 'Replit',
+        status: 'Active',
+        icon: '🌀'
+      };
+    } else if (process.env.HEROKU_APP_NAME) {
+      return {
+        name: 'Heroku',
+        status: 'Active',
+        icon: '🦸'
+      };
+    } else if (process.env.RENDER_SERVICE_ID) {
+      return {
+        name: 'Render',
+        status: 'Active',
+        icon: '⚡'
+      };
+    } else if (process.env.RAILWAY_ENVIRONMENT) {
+      return {
+        name: 'Railway',
+        status: 'Active',
+        icon: '🚂'
+      };
+    } else if (process.env.VERCEL) {
+      return {
+        name: 'Vercel',
+        status: 'Active',
+        icon: '▲'
+      };
+    } else if (process.env.GLITCH_PROJECT_REMIX) {
+      return {
+        name: 'Glitch',
+        status: 'Active',
+        icon: '🎏'
+      };
+    } else if (process.env.KOYEB) {
+      return {
+        name: 'Koyeb',
+        status: 'Active',
+        icon: '☁️'
+      };
+    } else if (process.env.CYCLIC_URL) {
+      return {
+        name: 'Cyclic',
+        status: 'Active',
+        icon: '🔄'
+      };
+    } else if (process.env.PANEL) {
+      return {
+        name: 'PteroPanel',
+        status: 'Active',
+        icon: '🖥️'
+      };
+    } else if (process.env.SSH_CONNECTION || process.env.SSH_CLIENT) {
+      return {
+        name: 'VPS/SSH',
+        status: 'Active',
+        icon: '🖥️'
+      };
+    } else if (process.platform === 'win32') {
+      return {
+        name: 'Windows PC',
+        status: 'Active',
+        icon: '💻'
+      };
+    } else if (process.platform === 'linux') {
+      return {
+        name: 'Linux VPS',
+        status: 'Active',
+        icon: '🐧'
+      };
+    } else if (process.platform === 'darwin') {
+      return {
+        name: 'MacOS',
+        status: 'Active',
+        icon: '🍎'
+      };
+    } else {
+      return {
+        name: 'Local Machine',
+        status: 'Active',
+        icon: '🏠'
+      };
+    }
+  };
+  
+  const getTimeZone = () => {
+    try {
+      // Try to get timezone from system
+      if (process.env.TZ) {
+        return process.env.TZ;
+      }
+      
+      // Try to detect from Intl
+      const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      if (timeZone) {
+        return timeZone;
+      }
+      
+      // Fallback based on environment
+      if (process.env.REPL_ID) {
+        return 'America/Los_Angeles'; // Replit default
+      } else if (process.env.HEROKU_APP_NAME) {
+        return 'UTC'; // Heroku default
+      } else if (process.env.RENDER) {
+        return 'UTC'; // Render default
+      }
+      
+    } catch (error) {}
+    
+    return 'UTC';
+  };
+  
+  const getCorePower = () => {
+    try {
+      const cpus = os.cpus();
+      if (cpus && cpus.length > 0) {
+        const model = cpus[0].model;
+        const cores = cpus.length;
+        const speed = cpus[0].speed;
+        
+        // Calculate performance score
+        let performance = 'Low';
+        let icon = '🐢';
+        
+        if (cores >= 8 && speed >= 3000) {
+          performance = 'Ultra';
+          icon = '🚀';
+        } else if (cores >= 4 && speed >= 2500) {
+          performance = 'High';
+          icon = '⚡';
+        } else if (cores >= 2 && speed >= 2000) {
+          performance = 'Medium';
+          icon = '⚙️';
+        }
+        
+        return {
+          cores: cores,
+          speed: `${(speed / 1000).toFixed(1)} GHz`,
+          performance: performance,
+          icon: icon,
+          model: model.length > 30 ? model.substring(0, 30) + '...' : model
+        };
+      }
+    } catch (error) {}
+    
+    return {
+      cores: 'N/A',
+      speed: 'N/A',
+      performance: 'Unknown',
+      icon: '❓',
+      model: 'Unknown CPU'
+    };
+  };
+  
+  // Get current time and date
+  const now = new Date();
+  const currentTime = now.toLocaleTimeString('en-US', { 
+    hour12: true, 
+    hour: '2-digit', 
+    minute: '2-digit',
+    second: '2-digit'
+  });
+  
+  const currentDate = now.toLocaleDateString('en-US', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  });
+  
+  // Load bot information using helper functions
   const botName = getBotName();
+  const ownerName = getOwnerName();
+  const botPrefix = getBotPrefix();
+  const botVersion = getBotVersion();
+  const botMode = getBotMode();
+  const deploymentPlatform = getDeploymentPlatform();
+  const timeZone = getTimeZone();
+  const corePower = getCorePower();
   
   // Add bot name header before the info section
   finalCaption += `> 🐺🌕 *${botName}* 🌕🐺\n`;
@@ -2256,58 +2788,74 @@ case 6: {
     const speed = (performance.now() - start).toFixed(2);
     const usedMem = (process.memoryUsage().rss / 1024 / 1024).toFixed(1);
     const totalMem = (os.totalmem() / 1024 / 1024 / 1024).toFixed(0);
-    const memPercent = Math.min(((usedMem / (totalMem * 1024)) * 100).toFixed(0), 100);
-    const memBar = "█".repeat(Math.floor(memPercent / 10)) + "░".repeat(10 - Math.floor(memPercent / 10));
-
-    // Load owner from owner.json file (improved version)
-    let ownerNumber = "Unknown";
-    try {
-      const ownerPath = path.join(__dirname, 'owner.json');
-      if (fs.existsSync(ownerPath)) {
-        const ownerData = fs.readFileSync(ownerPath, 'utf8');
-        const ownerInfo = JSON.parse(ownerData);
-        
-        // Try different possible field names in owner.json
-        if (ownerInfo.owner && ownerInfo.owner.trim() !== '') {
-          ownerNumber = ownerInfo.owner.trim();
-        } else if (ownerInfo.number && ownerInfo.number.trim() !== '') {
-          ownerNumber = ownerInfo.number.trim();
-        } else if (ownerInfo.phone && ownerInfo.phone.trim() !== '') {
-          ownerNumber = ownerInfo.phone.trim();
-        } else if (ownerInfo.contact && ownerInfo.contact.trim() !== '') {
-          ownerNumber = ownerInfo.contact.trim();
-        } else if (Array.isArray(ownerInfo) && ownerInfo.length > 0) {
-          // If it's an array, take the first one
-          ownerNumber = typeof ownerInfo[0] === 'string' ? ownerInfo[0] : "Unknown";
-        }
-      }
-    } catch (ownerError) {
-      // Fallback to environment variable or global
-      ownerNumber = global.owner || process.env.OWNER_NUMBER || "Unknown";
+    
+    // SAFE CALCULATION: Prevent negative or invalid percentages
+    const memPercentNum = ((usedMem / (totalMem * 1024)) * 100);
+    const memPercent = Math.min(Math.max(parseFloat(memPercentNum.toFixed(0)), 0), 100);
+    
+    // SAFE BAR CALCULATION: Prevent negative repeat values
+    const filledBars = Math.max(Math.floor(memPercent / 10), 0);
+    const emptyBars = Math.max(10 - filledBars, 0);
+    const memBar = "█".repeat(filledBars) + "░".repeat(emptyBars);
+    
+    // Get Node.js version
+    const nodeVersion = process.version;
+    
+    // Calculate command speed in milliseconds
+    const commandSpeed = `${speed}ms`;
+    
+    // Get CPU load with safe calculation
+    const cpuLoad = Math.min(parseFloat(os.loadavg()[0].toFixed(2)), 5);
+    const cpuLoadBars = Math.max(Math.floor(cpuLoad), 0);
+    const cpuLoadEmpty = Math.max(5 - cpuLoadBars, 0);
+    const cpuLoadBar = "█".repeat(cpuLoadBars) + "░".repeat(cpuLoadEmpty);
+    
+    const infoLines = [];
+    
+    // TIME & DATE SECTION
+    if (fieldsStatus.time || fieldsStatus.date) {
+      infoLines.push(`> ┃ Date: ${currentDate}`);
+      infoLines.push(`> ┃ Time: ${currentTime}`);
+    }
+    
+    // SYSTEM INFO SECTION
+    if (fieldsStatus.user) infoLines.push(`> ┃ User: ${m.pushName || "Anonymous"}`);
+    if (fieldsStatus.owner) infoLines.push(`> ┃ Owner: ${ownerName}`);
+    if (fieldsStatus.mode) infoLines.push(`> ┃ Mode: ${botMode}`);
+    if (fieldsStatus.prefix) infoLines.push(`> ┃ Prefix: [ ${botPrefix} ]`);
+    if (fieldsStatus.version) infoLines.push(`> ┃ Version: ${botVersion}`);
+    
+    // DEPLOYMENT & PLATFORM
+    if (fieldsStatus.host) {
+      infoLines.push(`> ┃ Panel: ${deploymentPlatform.name}`);
+      infoLines.push(`> ┃ Status: ${deploymentPlatform.status}`);
+    }
+    
+    // PERFORMANCE METRICS
+    if (fieldsStatus.speed) {
+      infoLines.push(`> ┃ Speed: ${commandSpeed}`);
+      infoLines.push(`> ┃ CPU Load: ${cpuLoadBar} ${cpuLoad}`);
     }
 
-    // Load bot mode using the helper function
-    const botMode = getBotMode();
+    if (fieldsStatus.uptime) infoLines.push(`> ┃ Uptime: ${uptimeStr}`);
+    if (fieldsStatus.usage) infoLines.push(`> ┃ Usage: ${usedMem} MB of ${totalMem} GB`);
+    if (fieldsStatus.ram) infoLines.push(`> ┃ RAM: ${memBar} ${memPercent}%`);
 
-    const host = process.env.REPL_ID ? "Replit" : process.env.HEROKU_APP_NAME ? "Heroku" : process.env.RENDER ? "Render" : "Panel";
-    const prefix = global.prefix || ".";
-    const version = global.version || "v2.6.2";
-
-    const infoLines = [];
-    // Bot name is already in the header, so we don't duplicate it here
-    if (fieldsStatus.user) infoLines.push(`┃ User: ${m.pushName || "Anonymous"}`);
-    if (fieldsStatus.owner) infoLines.push(`┃ Owner: ${ownerNumber}`);
-    if (fieldsStatus.mode) infoLines.push(`┃ Mode: ${botMode}`);  // Use the loaded botMode
-    if (fieldsStatus.host) infoLines.push(`┃ Host: ${host}`);
-    if (fieldsStatus.speed) infoLines.push(`┃ Speed: ${speed} ms`);
-    if (fieldsStatus.prefix) infoLines.push(`┃ Prefix: [ ${prefix} ]`);
-    if (fieldsStatus.uptime) infoLines.push(`┃ Uptime: ${uptimeStr}`);
-    if (fieldsStatus.version) infoLines.push(`┃ Version: ${version}`);
-    if (fieldsStatus.usage) infoLines.push(`┃ Usage: ${usedMem} MB of ${totalMem} GB`);
-    if (fieldsStatus.ram) infoLines.push(`┃ RAM: ${memBar} ${memPercent}%`);
+    // CORE POWER (HARDWARE INFO)
+    if (fieldsStatus.ram || fieldsStatus.usage) { // Reuse existing toggles for core power
+      infoLines.push(`> ┃ ${corePower.icon} Cores: ${corePower.cores} @ ${corePower.speed}`);
+      infoLines.push(`> ┃ Power: ${corePower.performance} Performance`);
+      infoLines.push(`> ┃ CPU: ${corePower.model}`);
+    }
+    
+    // NODE & TECH STACK
+    if (fieldsStatus.version) { // Reuse version toggle for Node info
+      infoLines.push(`> ┃ Node: ${nodeVersion}`);
+      infoLines.push(`> ┃ Timezone: ${timeZone}`);
+    }
 
     if (infoLines.length > 0) {
-      const infoCaption = `> ┌────────────────\n${infoLines.map(line => `> ${line}`).join('\n')}\n> └────────────────\n`;
+      const infoCaption = `> ┌────────────────\n${infoLines.join('\n')}\n> └────────────────\n`;
       finalCaption += infoCaption;
     }
   }
@@ -2321,25 +2869,32 @@ case 6: {
 > │ • promote                 
 > │ • demote                  
 > │ • kick                    
+> │ • kickall                 
 > │ • ban                     
 > │ • unban                   
 > │ • banlist                 
 > │ • clearbanlist            
 > │ • warn                    
-> │ • unwarn                  
-> │ • clearwarns              
+> │ • resetwarn               
+> │ • setwarn                 
 > │ • mute                    
 > │ • unmute                  
 > │ • gctime                  
-> │ • lock                    
-> │ • unlock                  
+> │ • antileave               
+> │ • antilink                
+> │ • welcome                 
 > ├────────────────
 > │ 🚫 *AUTO-MODERATION* 🚫   
 > ├────────────────
-> │ • antilink               
-> │ • antisticker            
-> │ • antiimage              
-> │ • antivideo             
+> │ • antisticker             
+> │ • antiviewonce  
+> │ • antilink  
+> │ • antiimage
+> │ • antivideo
+> │ • antiaudio
+> │ • antimention
+> │ • antistatusmention  
+> │ • antigrouplink
 > ├────────────────
 > │ 📊 *GROUP INFO & TOOLS* 📊 
 > ├────────────────
@@ -2350,13 +2905,18 @@ case 6: {
 > │ • link                    
 > │ • invite                  
 > │ • revoke                  
-> │ • setname                 
 > │ • setdesc                 
-> │ • setgcpp                 
-> │ • welcome                 
-> │ • goodbye                 
 > │ • fangtrace               
-> │ • disp                    
+> │ • getgpp                  
+> └────────────────
+
+> ┌────────────────
+> │ 🎨 *MENU COMMANDS* 🎨
+> ├────────────────
+> │ • togglemenuinfo
+> │ • setmenuimage
+> │ • resetmenuinfo
+> │ • menustyle
 > └────────────────
 
 > ┌────────────────
@@ -2364,72 +2924,92 @@ case 6: {
 > ├────────────────
 > │ ⚡ *CORE MANAGEMENT* ⚡    
 > ├────────────────
+> │ • setbotname              
+> │ • setowner                
 > │ • setprefix               
-> │ • setantilink             
+> │ • iamowner                
+> │ • about                   
 > │ • block                   
 > │ • unblock                 
+> │ • blockdetect             
 > │ • silent                  
-> │ • default                 
-> │ • runcode                 
+> │ • anticall                
+> │ • mode                    
+> │ • online                  
+> │ • setpp                   
+> │ • repo                    
 > ├────────────────
 > │ 🔄 *SYSTEM & MAINTENANCE* 🛠️ 
 > ├────────────────
 > │ • restart                 
-> │ • update                  
-> │ • gcrestart               
-> │ • backup                  
-> │ • restore                 
-> │ • cleardb                 
-> │ • cleartemp               
+> │ • workingreload           
+> │ • reloadenv               
+> │ • getsettings             
+> │ • setsetting              
+> │ • test                    
+> │ • disk                    
+> │ • hostip                  
+> │ • findcommands            
 > └────────────────
 
 > ┌────────────────
-> │ ✨ *GENERAL UTILITIES* ✨  
+> │ ⚙️ *AUTOMATION* ⚙️
 > ├────────────────
-> │ 🔍 *INFO & SEARCH* 🔎     
-> ├────────────────
-> │ • ping                    
-> │ • time                    
-> │ • calc                    
-> │ • define                  
-> │ • dictionary              
-> │ • wiki                    
-> │ • news                    
-> │ • weather                 
-> │ • covid                   
-> │ • stock                   
-> │ • currency               
-> ├───────────────
-> │ 🔗 *CONVERSION & MEDIA* 📁 
-> ├───────────────
-> │ • translate               
-> │ • convert                 
-> │ • shorturl                
-> │ • expandurl               
-> │ • qrencode                
-> │ • qrdecode                
-> │ • reverseimage            
-> │ • tomp3                   
-> │ • tovideo                 
-> │ • tosticker               
-> ├───────────────
-> │ 📝 *PERSONAL TOOLS* 📅    
-> ├───────────────
-> │ • reminder                
-> │ • todo                   
-> └───────────────
+> │ • autoread                
+> │ • autotyping              
+> │ • autorecording           
+> │ • autoreact               
+> │ • autoreactstatus         
+> │ • autobio                 
+> │ • autorec                 
+> └────────────────
 
+> ┌────────────────
+> │ ✨ *GENERAL UTILITIES* ✨
 > ├────────────────
-> │ 🎵 *MUSIC & FUN* 🎶
+> │ 🔍 *INFO & SEARCH* 🔎
 > ├────────────────
-> │ • play
-> │ • song
-> │ • lyrics
-> │ • spotify
-> │ • video
-> │ • video2
-> │ • bassboost
-> │ • trebleboost
+> │ • alive
+> │ • ping
+> │ • ping2
+> │ • time
+> │ • connection
+> │ • define
+> │ • news
+> │ • covid
+> │ • iplookup
+> │ • getip
+> │ • getpp
+> │ • getgpp
+> │ • prefixinfo
+> ├───────────────
+> │ 🔗 *CONVERSION & MEDIA* 📁
+> ├───────────────
+> │ • shorturl
+> │ • qrencode
+> │ • take
+> │ • imgbb
+> │ • tiktok
+> │ • save
+> ├───────────────
+> │ 📝 *PERSONAL TOOLS* 📅
+> ├───────────────
+> │ • pair
+> │ • resetwarn
+> │ • setwarn
+> └────────────────
+
+> ┌────────────────
+> │ 🎵 *MUSIC & MEDIA* 🎶
+> ├────────────────
+> │ • play                    
+> │ • song                    
+> │ • lyrics                  
+> │ • spotify                 
+> │ • video                   
+> │ • video2                  
+> │ • bassboost               
+> │ • trebleboost             
 > └────────────────
 
 > ┌───────────────
@@ -2437,22 +3017,33 @@ case 6: {
 > ├───────────────
 > │ ⬇️ *MEDIA DOWNLOADS* 📥     
 > ├───────────────
-> │ • ytdl                    
-> │ • spotifydl               
-> │ • tiktokdl                
-> │ • instadl                 
-> │ • twitterdl               
-> │ • mediafire               
+> │ • youtube                 
+> │ • tiktok                 
+> │ • instagram               
+> │ • facebook                
+> │ • snapchat                
+> │ • apk                     
 > ├───────────────
 > │ 🎨 *AI GENERATION* 💡    
 > ├───────────────
-> │ • gemini                  
 > │ • gpt                     
+> │ • gemini                  
 > │ • deepseek                
-> │ • chat                    
-> │ • summary                 
-> │ • imagine                 
-> │ • dalle                   
+> │ • deepseek+               
+> │ • analyze                 
+> │ • suno                    
+> │ • wolfbot                 
+> │ • videogen                
+> └───────────────
+
+> ┌───────────────
+> │ 🖼️ *IMAGE TOOLS* 🖼️
+> ├───────────────
+> │ • image                   
+> │ • imagegenerate           
+> │ • anime                   
+> │ • art                     
+> │ • real                    
 > └───────────────
 
 > ┌───────────────
@@ -2460,27 +3051,98 @@ case 6: {
 > ├───────────────
 > │ 🌐 *NETWORK & INFO* 📡   
 > ├───────────────
-> │ • ipinfo              
-> │ • whois               
-> │ • dnslookup          
-> │ • host               
-> │ • reverseip           
-> │ • ssllabs             
-> │ • shodan              
+> │ • ipinfo                  
+> │ • shodan                  
+> │ • iplookup                
+> │ • getip                   
+> └───────────────
+
+> ┌────────────────
+> │ 🎨 *LOGO DESIGN STUDIO* 🎨
 > ├────────────────
-> │ 🔑 *VULNERABILITY & SCAN* ⚙️ 
+> │ 🌟 *PREMIUM METALS* 🌟    
 > ├────────────────
-> │ • pwcheck             
-> │ • breach              
-> │ • portscan            
-> │ • httpheaders         
-> │ • subdomains          
-> │ • encode              
-> │ • decode              
-> │ • consent             
-> │ • scan-now            
-> │ • scan-status         
-> │ • security-tips       
+> │ • goldlogo                
+> │ • silverlogo              
+> │ • platinumlogo            
+> │ • chromelogo              
+> │ • diamondlogo             
+> │ • bronzelogo              
+> │ • steelogo                
+> │ • copperlogo              
+> │ • titaniumlogo            
+> ├────────────────
+> │ 🔥 *ELEMENTAL EFFECTS* 🔥  
+> ├────────────────
+> │ • firelogo                
+> │ • icelogo                 
+> │ • iceglowlogo             
+> │ • lightninglogo           
+> │ • aqualogo                
+> │ • rainbowlogo             
+> │ • sunlogo                 
+> │ • moonlogo                
+> ├────────────────
+> │ 🎭 *MYTHICAL & MAGICAL* 🧙  
+> ├────────────────
+> │ • dragonlogo              
+> │ • phoenixlogo             
+> │ • wizardlogo              
+> │ • crystallogo             
+> │ • darkmagiclogo           
+> ├────────────────
+> │ 🌌 *DARK & GOTHIC* 🌑     
+> ├────────────────
+> │ • shadowlogo              
+> │ • smokelogo               
+> │ • bloodlogo               
+> ├────────────────
+> │ 💫 *GLOW & NEON EFFECTS* 🌈  
+> ├────────────────
+> │ • neonlogo                
+> │ • glowlogo                
+> ├────────────────
+> │ 🤖 *TECH & FUTURISTIC* 🚀  
+> ├────────────────
+> │ • matrixlogo              
+> └────────────────
+
+> ┌────────────────
+> │ 🐙 *GITHUB COMMANDS* 🐙
+> ├────────────────
+> │ • gitclone
+> │ • gitinfo
+> │ • repo
+> │ • commits
+> │ • stars
+> │ • watchers
+> │ • release
+> └────────────────
+
+> ┌────────────────
+> │ 🌸 *ANIME COMMANDS* 🌸
+> ├────────────────
+> │ • awoo
+> │ • bj
+> │ • bully
+> │ • cringe
+> │ • cry
+> │ • cuddle
+> │ • dance
+> │ • glomp
+> │ • highfive
+> │ • kill
+> │ • kiss
+> │ • lick
+> │ • megumin
+> │ • neko
+> │ • pat
+> │ • shinobu
+> │ • trap
+> │ • trap2
+> │ • waifu
+> │ • wink
+> │ • yeet
 > └────────────────
 
 > 🐺🌕*POWERED BY WOLF TECH*🌕🐺
@@ -2500,7 +3162,6 @@ case 6: {
   await sock.sendMessage(jid, { image: buffer, caption: finalCaption, mimetype: "image/jpeg" }, { quoted: m });
   break;
 }
-
 
 
 

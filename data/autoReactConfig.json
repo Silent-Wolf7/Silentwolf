@@ -1,0 +1,33 @@
+{
+  "enabled": true,
+  "mode": "fixed",
+  "fixedEmoji": "🐺",
+  "reactions": [
+    "🐺",
+    "❤️",
+    "👍",
+    "🔥",
+    "🎉",
+    "😂",
+    "😮",
+    "👏",
+    "🎯",
+    "💯",
+    "🌟",
+    "✨",
+    "⚡",
+    "💥",
+    "🫶"
+  ],
+  "logs": [],
+  "totalReacted": 0,
+  "lastReacted": null,
+  "consecutiveReactions": 0,
+  "lastSender": null,
+  "settings": {
+    "rateLimitDelay": 500,
+    "reactToAll": true,
+    "ignoreConsecutiveLimit": true,
+    "noHourlyLimit": true
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "enabled": true,
+  "logs": [],
+  "totalViewed": 0,
+  "lastViewed": null,
+  "consecutiveViews": 0,
+  "lastSender": null,
+  "settings": {
+    "rateLimitDelay": 1000,
+    "viewToAll": true,
+    "ignoreConsecutiveLimit": true,
+    "markAsSeen": true,
+    "noHourlyLimit": true
+  }
+}
