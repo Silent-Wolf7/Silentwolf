@@ -5567,7 +5567,8 @@ case 7: {
 │ revoke                  
 │ setdesc                 
 │ fangtrace               
-│ getgpp                  
+│ getgpp 
+│ togstatus                 
 └────────────────
 
 ┌────────────────
