@@ -1780,7 +1780,6 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { createRequire } from 'module';
-import os from 'os';
 
 const execAsync = promisify(exec);
 const __filename = fileURLToPath(import.meta.url);
@@ -2134,6 +2133,27 @@ async function getCurrentBranch() {
   }
 }
 
+// Get current git revision safely
+async function getCurrentRevision() {
+  try {
+    const revision = await run("git rev-parse HEAD", 5000);
+    return revision;
+  } catch (error) {
+    console.warn("Could not get current revision (empty repo?):", error.message);
+    return "unknown";
+  }
+}
+
+// Check if git repository has commits
+async function hasGitCommits() {
+  try {
+    await run("git log --oneline -1", 5000);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // Initialize git repo if it doesn't exist - IMPROVED
 async function initGitRepo() {
   try {
@@ -2168,17 +2188,43 @@ async function initGitRepo() {
       console.log("Git repository initialized");
       return true;
     }
-    return false;
+    
+    // Try to make initial commit if none exists
+    if (!await hasGitCommits()) {
+      console.log("Creating initial commit...");
+      await run("git add .");
+      try {
+        await run('git commit -m "Initial commit - WolfBot"');
+      } catch (commitError) {
+        // If no changes to commit, create an empty file and commit
+        const emptyFile = path.join(process.cwd(), '.gitkeep');
+        fs.writeFileSync(emptyFile, '# WolfBot - Initial commit');
+        await run("git add .", 5000);
+        await run('git commit -m "Initial commit - WolfBot"', 10000);
+        fs.unlinkSync(emptyFile);
+      }
+      console.log("Initial commit created");
+    }
+    
+    return true;
+    
   } catch (error) {
     console.error("Failed to initialize git repo:", error);
     throw error;
   }
 }
 
+// Update progress bar animation
+function getProgressBar(percentage) {
+  const filled = Math.round((percentage / 100) * 20);
+  const empty = 20 - filled;
+  return `█`.repeat(filled) + `░`.repeat(empty);
+}
+
 // Update from wolf-bot repo (your update source) - IMPROVED
 async function updateFromWolfBot(hotReload = false) {
   let updatedFiles = [];
-  const changesDir = path.join(process.cwd(), 'tmp_changes');
+  const changesDir = path.join(process.cwd(), 'tmp_changes_' + Date.now());
   
   try {
     // Check git installation
@@ -2188,10 +2234,10 @@ async function updateFromWolfBot(hotReload = false) {
     }
     
     // Save current state
-    const oldRev = await run("git rev-parse HEAD").catch(() => "unknown");
+    const oldRev = await getCurrentRevision();
     const currentBranch = await getCurrentBranch();
     
-    console.log(`Current branch: ${currentBranch}, Old revision: ${oldRev.substring(0, 7)}`);
+    console.log(`Current branch: ${currentBranch}, Old revision: ${oldRev.substring(0, 7) || 'unknown'}`);
     
     // Add wolf-bot as upstream if not already added
     try {
@@ -2243,13 +2289,17 @@ async function updateFromWolfBot(hotReload = false) {
       };
     }
     
-    console.log(`Updating from wolf-bot/${sourceBranch}: ${oldRev.substring(0, 7)} → ${newRev.substring(0, 7)}`);
+    console.log(`Updating from wolf-bot/${sourceBranch}: ${oldRev.substring(0, 7) || 'unknown'} → ${newRev.substring(0, 7)}`);
     
     // For hot reload, get list of changed files
     if (hotReload) {
       try {
-        // Get diff between current and new
-        const diffOutput = await run(`git diff --name-only ${oldRev} wolf-bot-upstream/${sourceBranch}`, 15000);
+        // Get diff between current and new (handle empty repo case)
+        const diffCmd = oldRev === "unknown" 
+          ? `git diff --name-only HEAD wolf-bot-upstream/${sourceBranch}` 
+          : `git diff --name-only ${oldRev} wolf-bot-upstream/${sourceBranch}`;
+        
+        const diffOutput = await run(diffCmd, 15000);
         updatedFiles = diffOutput.split('\n')
           .filter(line => line.trim())
           .map(file => path.resolve(file));
@@ -2280,11 +2330,18 @@ async function updateFromWolfBot(hotReload = false) {
       }
     }
     
-    // Create backup branch just in case
+    // Create backup branch just in case (only if we have commits)
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const backupBranch = `backup-before-update-${timestamp}`;
-    await run(`git branch ${backupBranch}`);
-    console.log(`Created backup branch: ${backupBranch}`);
+    
+    if (oldRev !== "unknown") {
+      try {
+        await run(`git branch ${backupBranch}`);
+        console.log(`Created backup branch: ${backupBranch}`);
+      } catch (branchError) {
+        console.warn("Could not create backup branch:", branchError.message);
+      }
+    }
     
     // Reset to wolf-bot's latest with merge strategy
     await run(`git reset --hard wolf-bot-upstream/${sourceBranch}`);
@@ -2317,7 +2374,7 @@ async function updateFromWolfBot(hotReload = false) {
       newRev, 
       alreadyUpToDate, 
       source: `wolf-bot/${sourceBranch}`,
-      backupBranch,
+      backupBranch: oldRev !== "unknown" ? backupBranch : null,
       type: "git",
       updatedFiles,
       changesDir: updatedFiles.length > 0 ? changesDir : null
@@ -2371,9 +2428,9 @@ async function preserveLocalFiles() {
     'logs',
     'logs/*',
     'tmp*',
-    'tmp_changes',
-    'tmp_preserve',
-    'tmp_update',
+    'tmp_changes*',
+    'tmp_preserve*',
+    'tmp_update*',
     '*.db',
     '*.sqlite',
     'database.json'
@@ -2610,7 +2667,7 @@ async function updateViaZip(hotReload = false) {
       '.env*',
       'tmp_update*',
       'tmp_preserve*',
-      'tmp_changes',
+      'tmp_changes*',
       '*.log',
       '*.db',
       '*.sqlite',
@@ -2643,7 +2700,8 @@ async function updateViaZip(hotReload = false) {
       success: true, 
       source: "wolf-bot ZIP",
       url: zipUrl,
-      updatedFiles: hotReload ? updatedFiles : []
+      updatedFiles: hotReload ? updatedFiles : [],
+      type: "zip"
     };
   } catch (error) {
     // Cleanup on error
@@ -2783,6 +2841,52 @@ async function copyDir(src, dest) {
   }
 }
 
+// Safe restart function for Pterodactyl panels (doesn't kill process)
+async function safeRestartForPanel(soft = true) {
+  console.log(`🔄 ${soft ? 'Soft reloading' : 'Restarting'} for panel environment...`);
+  
+  try {
+    // For Pterodactyl panels, we NEVER exit the process
+    // Instead, clear module caches and let modules reload on demand
+    
+    console.log("Clearing module cache for soft reload...");
+    
+    // Clear Node.js require cache
+    if (require.cache) {
+      const cacheCount = Object.keys(require.cache).length;
+      for (const key in require.cache) {
+        delete require.cache[key];
+      }
+      console.log(`Cleared ${cacheCount} modules from require.cache`);
+    }
+    
+    // Clear our module cache
+    moduleCache.clear();
+    
+    // Clear hot reload handlers
+    hotReloadHandlers.clear();
+    
+    // Stop file watchers (they'll be recreated when modules reload)
+    fileWatcher.unwatchAll();
+    
+    console.log("✅ Soft reload prepared - modules will reload on next use");
+    return "soft-reload-prepared";
+    
+  } catch (error) {
+    console.error("Soft reload failed:", error);
+    return "soft-reload-failed";
+  }
+}
+
+// Check if running in Pterodactyl panel
+function isPterodactylPanel() {
+  return process.env.PTERODACTYL || 
+         process.env.NODE_APP_INSTANCE !== undefined ||
+         fs.existsSync('/etc/pterodactyl') ||
+         fs.existsSync('/home/container') ||
+         process.env.PANEL_UPDATE_URL !== undefined;
+}
+
 // Enhanced settings loader with hot reload support - IMPROVED
 export async function loadSettings() {
   const possiblePaths = [
@@ -2859,320 +2963,6 @@ export async function loadSettings() {
   return settings;
 }
 
-// Dynamic command loader with hot reload - IMPROVED
-export class DynamicCommandLoader {
-  constructor(commandsDir = path.join(process.cwd(), 'commands')) {
-    this.commandsDir = commandsDir;
-    this.commands = new Map();
-    this.commandFiles = new Map();
-    this.watching = false;
-  }
-  
-  async loadAllCommands() {
-    console.log(`📂 Loading commands from: ${this.commandsDir}`);
-    
-    if (!fs.existsSync(this.commandsDir)) {
-      console.warn(`Commands directory not found: ${this.commandsDir}`);
-      // Try to create it
-      try {
-        fs.mkdirSync(this.commandsDir, { recursive: true });
-        console.log(`Created commands directory: ${this.commandsDir}`);
-      } catch (error) {
-        console.error(`Could not create commands directory:`, error);
-      }
-      return this.commands;
-    }
-    
-    try {
-      const files = fs.readdirSync(this.commandsDir)
-        .filter(file => file.endsWith('.js') || file.endsWith('.mjs') || file.endsWith('.cjs'))
-        .sort(); // Sort for consistent loading order
-      
-      console.log(`Found ${files.length} command files`);
-      
-      for (const file of files) {
-        await this.loadCommand(file);
-      }
-      
-      // Watch for changes
-      if (!this.watching) {
-        this.watchCommands();
-        this.watching = true;
-      }
-      
-      return this.commands;
-    } catch (error) {
-      console.error(`Error loading commands from ${this.commandsDir}:`, error);
-      return this.commands;
-    }
-  }
-  
-  async loadCommand(filename) {
-    const filePath = path.join(this.commandsDir, filename);
-    
-    try {
-      // Check if file exists and is readable
-      if (!fs.existsSync(filePath)) {
-        console.warn(`Command file does not exist: ${filename}`);
-        return null;
-      }
-      
-      // Clear cache
-      clearModuleCache(filePath);
-      
-      // Import the module with cache buster
-      const cacheBuster = `file://${filePath}?t=${Date.now()}`;
-      const module = await import(cacheBuster);
-      const command = module.default || module;
-      
-      if (command && command.name && typeof command.execute === 'function') {
-        this.commands.set(command.name, command);
-        this.commandFiles.set(command.name, filePath);
-        console.log(`✅ Loaded command: ${command.name} (${filename})`);
-        return command;
-      } else {
-        console.warn(`Invalid command module in ${filename} - missing name or execute function`);
-        return null;
-      }
-    } catch (error) {
-      console.error(`❌ Failed to load command ${filename}:`, error.message);
-      return null;
-    }
-  }
-  
-  watchCommands() {
-    // Watch the commands directory for changes
-    fileWatcher.watchDirectory(this.commandsDir, async (changedPath) => {
-      const filename = path.basename(changedPath);
-      
-      if (filename.endsWith('.js') || filename.endsWith('.mjs') || filename.endsWith('.cjs')) {
-        console.log(`🔄 Command file changed: ${filename}`);
-        
-        // Wait a moment to ensure file is fully written
-        await new Promise(resolve => setTimeout(resolve, 300));
-        
-        // Find which command this file belongs to
-        for (const [cmdName, cmdPath] of this.commandFiles.entries()) {
-          if (cmdPath === changedPath) {
-            try {
-              // Reload the command
-              await this.loadCommand(filename);
-              console.log(`✅ Reloaded command: ${cmdName}`);
-            } catch (error) {
-              console.error(`❌ Failed to reload command ${cmdName}:`, error.message);
-            }
-            break;
-          }
-        }
-        
-        // If it's a new file, try to load it
-        if (!Array.from(this.commandFiles.values()).includes(changedPath)) {
-          console.log(`🆕 New command file detected: ${filename}`);
-          await this.loadCommand(filename);
-        }
-      }
-    }, true, 1500); // Use 1.5 second debounce for commands
-  }
-  
-  getCommand(name) {
-    return this.commands.get(name);
-  }
-  
-  getAllCommands() {
-    return Array.from(this.commands.values());
-  }
-  
-  getCommandCount() {
-    return this.commands.size;
-  }
-}
-
-// Dynamic event handler loader - IMPROVED
-export class DynamicEventHandler {
-  constructor(handlersDir = path.join(process.cwd(), 'handlers')) {
-    this.handlersDir = handlersDir;
-    this.handlers = new Map();
-    this.watching = false;
-  }
-  
-  async loadAllHandlers() {
-    console.log(`📂 Loading event handlers from: ${this.handlersDir}`);
-    
-    if (!fs.existsSync(this.handlersDir)) {
-      console.warn(`Handlers directory not found: ${this.handlersDir}`);
-      // Try to create it
-      try {
-        fs.mkdirSync(this.handlersDir, { recursive: true });
-        console.log(`Created handlers directory: ${this.handlersDir}`);
-      } catch (error) {
-        console.error(`Could not create handlers directory:`, error);
-      }
-      return this.handlers;
-    }
-    
-    try {
-      const files = fs.readdirSync(this.handlersDir)
-        .filter(file => file.endsWith('.js') || file.endsWith('.mjs') || file.endsWith('.cjs'))
-        .sort();
-      
-      console.log(`Found ${files.length} handler files`);
-      
-      for (const file of files) {
-        await this.loadHandler(file);
-      }
-      
-      // Watch for changes
-      if (!this.watching) {
-        this.watchHandlers();
-        this.watching = true;
-      }
-      
-      return this.handlers;
-    } catch (error) {
-      console.error(`Error loading handlers from ${this.handlersDir}:`, error);
-      return this.handlers;
-    }
-  }
-  
-  async loadHandler(filename) {
-    const filePath = path.join(this.handlersDir, filename);
-    
-    try {
-      if (!fs.existsSync(filePath)) {
-        console.warn(`Handler file does not exist: ${filename}`);
-        return null;
-      }
-      
-      // Clear cache
-      clearModuleCache(filePath);
-      
-      // Import the module with cache buster
-      const cacheBuster = `file://${filePath}?t=${Date.now()}`;
-      const module = await import(cacheBuster);
-      const handler = module.default || module;
-      
-      if (handler && handler.event && typeof handler.execute === 'function') {
-        this.handlers.set(handler.event, handler);
-        console.log(`✅ Loaded handler for event: ${handler.event} (${filename})`);
-        return handler;
-      } else {
-        console.warn(`Invalid handler module in ${filename} - missing event or execute function`);
-        return null;
-      }
-    } catch (error) {
-      console.error(`❌ Failed to load handler ${filename}:`, error.message);
-      return null;
-    }
-  }
-  
-  watchHandlers() {
-    // Watch the handlers directory for changes
-    fileWatcher.watchDirectory(this.handlersDir, async (changedPath) => {
-      const filename = path.basename(changedPath);
-      
-      if (filename.endsWith('.js') || filename.endsWith('.mjs') || filename.endsWith('.cjs')) {
-        console.log(`🔄 Handler file changed: ${filename}`);
-        
-        // Wait a moment to ensure file is fully written
-        await new Promise(resolve => setTimeout(resolve, 300));
-        
-        try {
-          await this.loadHandler(filename);
-          console.log(`✅ Handler reloaded: ${filename}`);
-        } catch (error) {
-          console.error(`❌ Failed to reload handler ${filename}:`, error.message);
-        }
-      }
-    }, true, 1500);
-  }
-  
-  getHandler(event) {
-    return this.handlers.get(event);
-  }
-  
-  getHandlerCount() {
-    return this.handlers.size;
-  }
-}
-
-// Update progress bar animation
-function getProgressBar(percentage) {
-  const filled = Math.round((percentage / 100) * 20);
-  const empty = 20 - filled;
-  return `█`.repeat(filled) + `░`.repeat(empty);
-}
-
-// Simple restart function - IMPROVED for panels
-async function restartProcess() {
-  console.log("🔄 Restarting bot process...");
-  
-  try {
-    // Check if we're in a panel environment (common panel indicators)
-    const isPanel = process.env.PANEL_ENV || 
-                   process.env.PM2_HOME || 
-                   process.env.NODE_APP_INSTANCE !== undefined ||
-                   process.argv.join(' ').includes('panel') ||
-                   fs.existsSync('/etc/panel') ||
-                   fs.existsSync('/usr/local/panel');
-    
-    // Try different restart methods based on environment
-    if (await checkTool('pm2')) {
-      console.log("Restarting with PM2...");
-      const appName = process.env.PM2_APP_NAME || 'wolf-bot';
-      await run(`pm2 restart ${appName}`, 30000);
-      return;
-    } else if (await checkTool('forever')) {
-      console.log("Restarting with Forever...");
-      await run("forever restartall", 30000);
-      return;
-    } else if (await checkTool('systemctl')) {
-      console.log("Restarting with systemctl...");
-      // Try common service names
-      const services = ['wolfbot', 'wolf-bot', 'whatsapp-bot', 'bot'];
-      for (const service of services) {
-        try {
-          await run(`systemctl restart ${service}`, 10000);
-          console.log(`Restarted service: ${service}`);
-          return;
-        } catch {
-          continue;
-        }
-      }
-    } else if (isPanel) {
-      console.log("Panel environment detected, using graceful exit...");
-      // Send restart signal to parent process if possible
-      if (process.send) {
-        process.send('restart');
-      }
-      
-      // Graceful exit with delay
-      setTimeout(() => {
-        console.log("Exiting process for restart...");
-        process.exit(0);
-      }, 2000);
-      return;
-    }
-    
-    // Fallback: graceful exit
-    console.log("No process manager found, performing graceful exit...");
-    
-    // Give time for cleanup
-    setTimeout(() => {
-      console.log("🔄 Exiting for restart...");
-      process.exit(0);
-    }, 3000);
-    
-  } catch (error) {
-    console.error("Restart failed:", error);
-    console.log("⚠️  Forcing exit...");
-    
-    // Force exit after delay
-    setTimeout(() => {
-      process.exit(0);
-    }, 2000);
-  }
-}
-
 // Main command handler
 export default {
   name: "update",
@@ -3220,14 +3010,14 @@ export default {
       // Initial message
       await sendUpdate("🔄 *WolfBot Update System*\n\nChecking for updates...\nInitializing update process...\n\nPlease wait...");
       
+      // Check if Pterodactyl panel
+      const isPterodactyl = isPterodactylPanel();
+      
       // Load settings
       await animateProgress("Loading bot settings...", 10);
-      const settings = await loadSettings();
       
-      // Check if owner
-      const isOwner = m.key.fromMe || 
-        (settings.ownerNumber && sender.includes(settings.ownerNumber)) ||
-        (settings.botOwner && sender.includes(settings.botOwner));
+      // Check if owner (simplified for now)
+      const isOwner = m.key.fromMe; // Only allow from bot itself for now
       
       if (!isOwner) {
         await sendUpdate("❌ *Permission Denied*\n\nOnly the bot owner can update the bot.", true);
@@ -3235,131 +3025,84 @@ export default {
       }
       
       // Parse arguments
-      const forceMethod = args[0]?.toLowerCase();
+      let forceMethod = args[0]?.toLowerCase();
       const isForceZip = forceMethod === 'zip';
       const isForceGit = forceMethod === 'git';
       const hotReload = args.includes('hot') || args.includes('live');
       const softUpdate = args.includes('soft') || args.includes('no-restart');
       const skipDeps = args.includes('skip-deps') || args.includes('no-npm');
       
+      // For Pterodactyl, always use soft update to avoid killing process
+      const effectiveSoftUpdate = softUpdate || hotReload || isPterodactyl;
+      
       let updateResult;
       
-      // Check if we have git repo, initialize if not
+      // FIXED: Check if we have git repo with commits
       await animateProgress("Checking git repository...", 20);
       const hasGit = await hasGitRepo();
+      let hasCommits = false;
       
-      if (!hasGit && !isForceZip) {
-        await animateProgress("Initializing git repository...", 30);
+      if (hasGit) {
         try {
-          await initGitRepo();
-        } catch (gitError) {
-          console.warn("Git init failed:", gitError.message);
-          await sendUpdate("⚠️ *Git Initialization Warning*\n\nCould not initialize git repository.\nFalling back to ZIP update...", true);
-          // Force ZIP method
-          isForceZip = true;
+          await run("git log --oneline -1", 5000);
+          hasCommits = true;
+          console.log("Git repository has commits");
+        } catch (commitError) {
+          console.log("Git repository has no commits yet:", commitError.message);
+          hasCommits = false;
+          await sendUpdate("⚠️ *Empty Git Repository*\n\nNo commits found. Doing initial setup...", true);
+          
+          // Try to make initial commit
+          try {
+            await run("git add .", 10000);
+            await run('git commit -m "Initial commit - starting point"', 10000);
+            hasCommits = true;
+            console.log("Created initial commit");
+          } catch (initCommitError) {
+            console.warn("Could not create initial commit:", initCommitError.message);
+            await sendUpdate("⚠️ *Could not create initial commit*\n\nFalling back to ZIP update...", true);
+            forceMethod = 'zip'; // Force ZIP method
+          }
         }
       }
       
       // Determine update method
-      if ((hasGit && !isForceZip) || isForceGit) {
+      const useGit = (hasGit && hasCommits && !isForceZip) || isForceGit;
+      
+      if (useGit) {
         // Git update from wolf-bot
         await animateProgress("Checking wolf-bot repository...", 40);
         
         try {
-          updateResult = await updateFromWolfBot(hotReload || softUpdate);
+          updateResult = await updateFromWolfBot(effectiveSoftUpdate);
+          
+          if (updateResult.alreadyUpToDate) {
+            await sendUpdate(
+              "✅ *Already Up to Date!*\n\n" +
+              `📁 *Source:* ${updateResult.source}\n` +
+              `🔗 *Commit:* ${updateResult.newRev.substring(0, 7)}\n\n` +
+              "_No updates available._",
+              true
+            );
+            return;
+          } else {
+            await animateProgress("Installing updates...", 60);
+          }
+          
         } catch (gitUpdateError) {
           console.error("Git update failed:", gitUpdateError);
           await sendUpdate("⚠️ *Git Update Failed*\n\nFalling back to ZIP update...\n\nError: " + gitUpdateError.message.substring(0, 200), true);
+          
           // Try ZIP as fallback
           await animateProgress("Trying ZIP update...", 45);
-          updateResult = await updateViaZip(hotReload || softUpdate);
-        }
-        
-        if (updateResult.alreadyUpToDate) {
-          await sendUpdate(
-            "✅ *Already Up to Date!*\n\n" +
-            `📁 *Source:* ${updateResult.source}\n` +
-            `🔗 *Commit:* ${updateResult.newRev.substring(0, 7)}\n\n` +
-            "_No updates available._",
-            true
-          );
-          return;
-        } else {
-          await animateProgress("Installing updates...", 60);
-          
-          // Install dependencies if package.json changed and not skipped
-          const needsNpmInstall = !skipDeps && updateResult.updatedFiles.some(file => 
-            file.includes('package.json') || file.includes('package-lock.json')
-          );
-          
-          if (needsNpmInstall) {
-            await animateProgress("Installing dependencies...", 70);
-            try {
-              await run("npm ci --no-audit --no-fund --silent", 180000);
-              await animateProgress("Dependencies installed!", 80);
-            } catch (npmError) {
-              console.error("npm install failed:", npmError.message);
-              await sendUpdate("⚠️ *Dependency Install Warning*\n\nSome dependencies may not have installed correctly.\n\nYou may need to run `npm install` manually.", true);
-            }
-          }
-          
-          // Hot reload if requested and possible
-          if ((hotReload || softUpdate) && updateResult.updatedFiles.length > 0) {
-            await animateProgress("Performing hot reload...", 85);
-            
-            try {
-              const reloadResults = await executeHotReload(updateResult.updatedFiles);
-              const successCount = reloadResults.filter(r => r.success).length;
-              
-              await sendUpdate(
-                "✅ *Hot Update Complete!* 🎉\n\n" +
-                `📁 *Source:* ${updateResult.source}\n` +
-                `🔄 *Updated:* ${updateResult.oldRev?.substring(0, 7) || 'N/A'} → ${updateResult.newRev?.substring(0, 7) || 'N/A'}\n` +
-                `📄 *Files Updated:* ${updateResult.updatedFiles.length}\n` +
-                `⚡ *Hot Reloaded:* ${successCount}/${reloadResults.length} modules\n` +
-                `💾 *Backup:* ${updateResult.backupBranch || 'None'}\n\n` +
-                "_Bot continues running without restart!_",
-                true
-              );
-              
-              // Cleanup
-              if (updateResult.changesDir && fs.existsSync(updateResult.changesDir)) {
-                try {
-                  fs.rmSync(updateResult.changesDir, { recursive: true });
-                } catch (cleanupError) {
-                  console.warn("Could not cleanup changes dir:", cleanupError.message);
-                }
-              }
-              
-              return;
-            } catch (reloadError) {
-              console.error("Hot reload failed:", reloadError);
-              await sendUpdate(
-                "⚠️ *Update Applied but Hot Reload Failed*\n\n" +
-                "Some files were updated but couldn't be reloaded.\n" +
-                "Restart may be required for full effect.\n\n" +
-                `Error: ${reloadError.message.substring(0, 150)}`,
-                true
-              );
-            }
-          }
-          
-          await sendUpdate(
-            "✅ *Update Complete!*\n\n" +
-            `📁 *Source:* ${updateResult.source}\n` +
-            `🔄 *Updated:* ${updateResult.oldRev?.substring(0, 7) || 'N/A'} → ${updateResult.newRev?.substring(0, 7) || 'N/A'}\n` +
-            `📄 *Files Updated:* ${updateResult.updatedFiles.length}\n` +
-            `💾 *Backup:* ${updateResult.backupBranch || 'None'}\n\n` +
-            "_Preparing to restart..._",
-            true
-          );
+          updateResult = await updateViaZip(effectiveSoftUpdate);
         }
       } else {
         // ZIP update from wolf-bot
         await animateProgress("Downloading wolf-bot update...", 40);
         
         try {
-          updateResult = await updateViaZip(hotReload || softUpdate);
+          updateResult = await updateViaZip(effectiveSoftUpdate);
         } catch (zipError) {
           console.error("ZIP update failed:", zipError);
           throw new Error(`ZIP update failed: ${zipError.message}`);
@@ -3367,48 +3110,104 @@ export default {
         
         await animateProgress("Extracting files...", 60);
         await animateProgress("Installing updates...", 80);
-        
-        await sendUpdate(
-          "✅ *ZIP Update Complete!*\n\n" +
-          `📁 *Source:* ${updateResult.source}\n` +
-          `🔗 *URL:* ${updateResult.url}\n` +
-          `📄 *Files Updated:* ${updateResult.updatedFiles?.length || 0}\n\n` +
-          "_Preparing to restart..._",
-          true
-        );
       }
       
-      // Install dependencies for ZIP updates
+      // Install dependencies if needed
       if (!skipDeps && fs.existsSync(path.join(process.cwd(), 'package.json'))) {
-        await animateProgress("Checking dependencies...", 85);
-        try {
-          await run("npm ci --no-audit --no-fund --silent", 120000);
-          await animateProgress("Dependencies installed!", 90);
-        } catch (npmError) {
-          console.warn("Dependency install warning:", npmError.message);
+        const needsNpmInstall = updateResult?.updatedFiles?.some(file => 
+          file.includes('package.json') || file.includes('package-lock.json')
+        ) || true; // Always install for ZIP updates
+          
+        if (needsNpmInstall) {
+          await animateProgress("Installing dependencies...", 85);
+          try {
+            await run("npm ci --no-audit --no-fund", 180000);
+            await animateProgress("Dependencies installed!", 90);
+          } catch (npmError) {
+            console.warn("npm install failed:", npmError.message);
+            await sendUpdate("⚠️ *Dependency Install Warning*\n\nSome dependencies may not have installed correctly.\n\nYou may need to run `npm install` manually.", true);
+          }
         }
       }
       
-      // Only restart if not doing soft update
-      if (!softUpdate && !hotReload) {
-        await animateProgress("Restarting WolfBot...", 95);
+      // Hot reload if requested and possible
+      if (effectiveSoftUpdate && updateResult?.updatedFiles && updateResult.updatedFiles.length > 0) {
+        await animateProgress("Performing hot reload...", 92);
         
-        // Small delay to ensure message is sent
-        await new Promise(resolve => setTimeout(resolve, 1500));
+        try {
+          const reloadResults = await executeHotReload(updateResult.updatedFiles);
+          const successCount = reloadResults.filter(r => r.success).length;
+          
+          // Cleanup temp directory
+          if (updateResult.changesDir && fs.existsSync(updateResult.changesDir)) {
+            try {
+              fs.rmSync(updateResult.changesDir, { recursive: true });
+            } catch (cleanupError) {
+              console.warn("Could not cleanup changes dir:", cleanupError.message);
+            }
+          }
+          
+          await sendUpdate(
+            "✅ *Hot Update Complete!* 🎉\n\n" +
+            `📁 *Source:* ${updateResult.source}\n` +
+            `🔄 *Updated:* ${updateResult.oldRev?.substring(0, 7) || 'Initial'} → ${updateResult.newRev?.substring(0, 7) || 'N/A'}\n` +
+            `📄 *Files Updated:* ${updateResult.updatedFiles.length}\n` +
+            `⚡ *Hot Reloaded:* ${successCount}/${reloadResults.length} modules\n` +
+            `💾 *Backup:* ${updateResult.backupBranch || 'None'}\n\n` +
+            "_Bot continues running without restart!_",
+            true
+          );
+          
+          return;
+        } catch (reloadError) {
+          console.error("Hot reload failed:", reloadError);
+          await sendUpdate(
+            "⚠️ *Update Applied but Hot Reload Failed*\n\n" +
+            "Some files were updated but couldn't be reloaded.\n" +
+            "Restart may be required for full effect.\n\n" +
+            `Error: ${reloadError.message.substring(0, 150)}`,
+            true
+          );
+        }
+      }
+      
+      // Final message - NO HARD RESTART FOR PTERODACTYL
+      const finalMessage = updateResult.alreadyUpToDate 
+        ? "✅ *Already Up to Date!*\n\nNo updates available."
+        : `✅ *${updateResult.type === 'git' ? 'Git' : 'ZIP'} Update Complete!*\n\n` +
+          `📁 *Source:* ${updateResult.source}\n` +
+          `🔄 *Updated:* ${updateResult.oldRev?.substring(0, 7) || 'Initial'} → ${updateResult.newRev?.substring(0, 7) || 'N/A'}\n` +
+          `📄 *Files Updated:* ${updateResult.updatedFiles?.length || 0}\n` +
+          `💾 *Backup:* ${updateResult.backupBranch || 'None'}\n`;
+      
+      if (isPterodactyl) {
+        // For Pterodactyl panels, do soft reload instead of restart
+        await animateProgress("Preparing soft reload for Pterodactyl...", 95);
         
-        // Send final message
         await sendUpdate(
-          "🚀 *Restarting Now!*\n\n" +
-          "Bot will be back in a few moments...\n\n" +
-          "⏳ *Please wait while WolfBot restarts...*",
+          finalMessage + "\n" +
+          "⚡ *Pterodactyl Panel Detected*\n\n" +
+          "Performing soft reload to keep WhatsApp session alive...\n" +
+          "Your bot will remain connected while modules reload.\n\n" +
+          "🔄 *Clearing module cache...*",
           true
         );
         
-        // Restart the process with delay
-        setTimeout(async () => {
-          await restartProcess();
-        }, 2000);
-      } else {
+        // Perform soft reload
+        const reloadResult = await safeRestartForPanel(true);
+        
+        await sendUpdate(
+          "✅ *Update Successfully Applied!* 🎉\n\n" +
+          `📁 *Source:* ${updateResult.source}\n` +
+          `📄 *Files Updated:* ${updateResult.updatedFiles?.length || 0}\n` +
+          `⚡ *Reload Type:* Soft Reload (Panel Safe)\n` +
+          `🔗 *Status:* WhatsApp session remains connected!\n\n` +
+          "_New modules will load on next use. Bot is running!_",
+          true
+        );
+        
+      } else if (effectiveSoftUpdate) {
+        // Non-panel soft update
         await sendUpdate(
           "✅ *Soft Update Complete!*\n\n" +
           "Updates have been applied without restart.\n" +
@@ -3416,6 +3215,24 @@ export default {
           "⚡ *Bot is still running!*",
           true
         );
+      } else {
+        // Non-panel hard restart (only if not Pterodactyl)
+        await animateProgress("Preparing to restart...", 95);
+        
+        await sendUpdate(
+          "🚀 *Restarting WolfBot...*\n\n" +
+          "Bot will restart in 5 seconds...\n" +
+          "It will reconnect automatically.\n\n" +
+          "⏳ *Please wait...*",
+          true
+        );
+        
+        // Small delay to ensure message is sent
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        
+        // Exit process (will be restarted by PM2/systemd/etc.)
+        console.log("🔄 Exiting process for restart...");
+        process.exit(0);
       }
       
     } catch (error) {
@@ -3428,12 +3245,12 @@ export default {
       // Add helpful suggestions based on error
       if (error.message.includes('git') || error.message.includes('Git')) {
         errorMessage += "*Try these solutions:*\n";
-        errorMessage += "• Use ZIP method: `!update zip`\n";
+        errorMessage += "• Use ZIP method: `.update zip`\n";
         errorMessage += "• Install git on your server\n";
         errorMessage += "• Check git permissions\n";
       } else if (error.message.includes('ZIP') || error.message.includes('download')) {
         errorMessage += "*Try these solutions:*\n";
-        errorMessage += "• Use git method: `!update git`\n";
+        errorMessage += "• Use git method: `.update git`\n";
         errorMessage += "• Check internet connection\n";
         errorMessage += "• Install curl/wget on server\n";
       } else if (error.message.includes('permission') || error.message.includes('Permission')) {
@@ -3443,9 +3260,9 @@ export default {
         errorMessage += "• Use `chmod` to fix permissions\n";
       } else {
         errorMessage += "*Try these solutions:*\n";
-        errorMessage += "• Use hot reload: `!update hot`\n";
-        errorMessage += "• Soft update: `!update soft`\n";
-        errorMessage += "• Skip dependencies: `!update skip-deps`\n";
+        errorMessage += "• Use hot reload: `.update hot`\n";
+        errorMessage += "• Soft update: `.update soft`\n";
+        errorMessage += "• Skip dependencies: `.update skip-deps`\n";
       }
       
       errorMessage += "\n⚠️ *Bot is still running with previous version.*";
@@ -3463,10 +3280,13 @@ export {
   executeHotReload,
   hasGitRepo,
   getCurrentBranch,
+  getCurrentRevision,
+  hasGitCommits,
   initGitRepo,
   updateFromWolfBot,
   updateViaZip,
   preserveLocalFiles,
   restorePreservedFiles,
-  restartProcess
+  safeRestartForPanel,
+  isPterodactylPanel
 };

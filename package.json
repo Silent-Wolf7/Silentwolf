@@ -76,6 +76,7 @@
     "glob": "^11.0.3",
     "image-size": "^2.0.2",
     "jimp": "^1.6.0",
+    "jsdom": "^27.4.0",
     "libphonenumber-js": "^1.12.33",
     "moment": "^2.30.1",
     "moment-timezone": "^0.6.0",

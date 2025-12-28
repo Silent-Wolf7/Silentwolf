@@ -2828,6 +2828,9 @@ import { handleAutoView } from './commands/automation/autoviewstatus.js';
 import { initializeAutoJoin } from './commands/group/add.js';
 
 
+
+
+
 // ====== ENVIRONMENT SETUP ======
 dotenv.config({ path: './.env' });
 
