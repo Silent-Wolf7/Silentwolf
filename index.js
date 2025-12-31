@@ -2167,9 +2167,9 @@ async function handleConnectCommand(sock, msg, args, cleaned) {
         const currentPrefix = getCurrentPrefix();
         const platform = detectPlatform();
         
-        const loadingMessage = await sock.sendMessage(chatJid, {
-            text: `🐺 *${BOT_NAME}* is checking connection... █▒▒▒▒▒▒▒▒▒`
-        }, { quoted: msg });
+        // const loadingMessage = await sock.sendMessage(chatJid, {
+        //     text: `🐺 *${BOT_NAME}* is checking connection... █▒▒▒▒▒▒▒▒▒`
+        // }, { quoted: msg });
 
         const latency = Date.now() - start;
         
@@ -2204,23 +2204,23 @@ async function handleConnectCommand(sock, msg, args, cleaned) {
             await delay(remainingTime);
         }
 
-        await sock.sendMessage(chatJid, {
-            text: `
-╭━━🌕 *CONNECTION STATUS* 🌕━━╮
-┃  ⚡ *User:* ${cleaned.cleanNumber}
-┃  🔴 *Prefix:* "${currentPrefix}"
-┃  🐾 *Ultimatefix:* ${ultimatefixStatus}
-┃  🏗️ *Platform:* ${platform}
-┃  ⏱️ *Latency:* ${latency}ms ${statusEmoji}
-┃  ⏰ *Uptime:* ${uptimeText}
-┃  🔗 *Status:* ${statusText}
-┃  🎯 *Mood:* ${mood}
-┃  👑 *Owner:* ${isOwnerUser ? '✅ Yes' : '❌ No'}
-╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╯
-_🐺 The Moon Watches — ..._
-`,
-            edit: loadingMessage.key
-        }, { quoted: msg });
+//         await sock.sendMessage(chatJid, {
+//             text: `
+// ╭━━🌕 *CONNECTION STATUS* 🌕━━╮
+// ┃  ⚡ *User:* ${cleaned.cleanNumber}
+// ┃  🔴 *Prefix:* "${currentPrefix}"
+// ┃  🐾 *Ultimatefix:* ${ultimatefixStatus}
+// ┃  🏗️ *Platform:* ${platform}
+// ┃  ⏱️ *Latency:* ${latency}ms ${statusEmoji}
+// ┃  ⏰ *Uptime:* ${uptimeText}
+// ┃  🔗 *Status:* ${statusText}
+// ┃  🎯 *Mood:* ${mood}
+// ┃  👑 *Owner:* ${isOwnerUser ? '✅ Yes' : '❌ No'}
+// ╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╯
+// _🐺 The Moon Watches — ..._
+// `,
+//             edit: loadingMessage.key
+//         }, { quoted: msg });
         
         UltraCleanLogger.command(`Connect from ${cleaned.cleanNumber}`);
         
