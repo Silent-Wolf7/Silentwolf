@@ -1,131 +1,199 @@
-import { downloadContentFromMessage, getContentType } from "@whiskeysockets/baileys";
-import fs from "fs/promises";
-import fsSync from "fs"; 
-import path from "path";
+// import { downloadContentFromMessage, getContentType } from "@whiskeysockets/baileys";
+// import fs from "fs/promises";
+// import path from "path";
+// import { exec } from "child_process";
+// import util from "util";
 
-// ⚠️ NOTE: This function is a PLACEHOLDER for your actual FFmpeg conversion logic.
-// FFmpeg Filter: bass=g=15:f=110:w=300 
-// (g=gain, f=frequency, w=width/Q factor)
-async function applyBassBoost(inputPath, outputPath) {
-    // --- REAL FFmpeg CODE WILL GO HERE ---
-    /*
-    // Example using fluent-ffmpeg for the bass filter:
-    ffmpeg(inputPath)
-        .audioFilters('equalizer=f=110:width_type=h:width=300:g=15') // Applying an equalizer filter
-        .save(outputPath)
-        .on('end', () => resolve(outputPath))
-        .on('error', (err) => reject(new Error('FFmpeg BassBoost error: ' + err.message)));
-    */
+// const execPromise = util.promisify(exec);
+
+// export default {
+//     name: "bassboost",
+//     alias: ["bass", "boost", "bb"],
+//     desc: "Apply bass boost to audio files using FFmpeg",
+//     category: "audio",
+//     usage: ".bassboost [level] [reply to audio]\nLevels: low, medium, high (default: high)",
     
-    return new Promise(async (resolve, reject) => {
-        try {
-            // Simulating the process: Rename the input file to the output file (.mp3)
-            await fs.rename(inputPath, outputPath); 
-            resolve(outputPath);
-        } catch (error) {
-            reject(new Error("FFmpeg BassBoost failed (Placeholder error)."));
-        }
-    });
-}
-// -------------------------------------------------------------
-
-export default {
-    name: "bassboost",
-    alias: ["bass"],
-    desc: "Enhances the bass frequency of a replied audio/MP3 file.",
-    category: "audio",
-    usage: ".bassboost [reply to audio/MP3]",
-
-    async execute(sock, m) {
-        const chatId = m.key.remoteJid;
-        
-        const quotedMsg = m.message?.extendedTextMessage?.contextInfo?.quotedMessage;
-        
-        if (!quotedMsg) {
-            return await sock.sendMessage(chatId, {
-                text: "⚠️ Please reply to an **Audio** or **MP3 file** to apply the bass boost.",
-            }, { quoted: m });
-        }
-        
-        const messageType = getContentType(quotedMsg);
-        const mediaContent = quotedMsg[messageType];
-        
-        const isAudio = messageType === 'audioMessage' || 
-                        (messageType === 'documentMessage' && mediaContent.mimetype.includes('audio'));
-
-        if (!isAudio) {
-            return await sock.sendMessage(chatId, {
-                text: "❌ The replied message must be an audio file.",
-            }, { quoted: m });
-        }
-        
-        let rawFilePath = null;
-        let outputFilePath = null;
-        
-        // Helper function to send file synchronously (required for Baileys audio buffer)
-        const sendFileAsync = (filePath, caption) => {
-            return new Promise((resolve, reject) => {
-                try {
-                    const audioBuffer = fsSync.readFileSync(filePath); 
-                    sock.sendMessage(chatId, {
-                        audio: audioBuffer,
-                        mimetype: 'audio/mp4', 
-                        fileName: 'bassboosted.mp3',
-                        caption: caption,
-                    }, { quoted: m }).then(resolve).catch(reject);
-                } catch (e) {
-                    reject(e);
-                }
-            });
-        };
-
-        try {
-            const tempDir = path.join(process.cwd(), "tmp");
-            await fs.mkdir(tempDir, { recursive: true });
+//     async execute(sock, m, args) {
+//         try {
+//             const chatId = m.key.remoteJid;
             
-            rawFilePath = path.join(tempDir, `raw_bass_${m.key.id}.mp3`);
-            outputFilePath = path.join(tempDir, `converted_bass_${m.key.id}.mp3`); 
-
-            // Download and write the raw media file asynchronously
-            const stream = await downloadContentFromMessage(mediaContent, messageType.replace("Message", ""));
-            const buffer = [];
-            for await (const chunk of stream) {
-                buffer.push(chunk);
-            }
-            await fs.writeFile(rawFilePath, Buffer.concat(buffer));
+//             console.log("🎵 Bassboost command called");
             
-            await sock.sendMessage(chatId, { text: "⏳ Applying bass boost, please wait..." }, { quoted: m });
+//             // Check if it's a reply
+//             if (!m.message?.extendedTextMessage?.contextInfo?.quotedMessage) {
+//                 return await sock.sendMessage(chatId, {
+//                     text: `🎵 *Bass Boost Command*\n\n*Usage:*\n• Reply to an audio with \`.bassboost\`\n• \`.bassboost high\` - Max bass\n• \`.bassboost medium\` - Medium bass\n• \`.bassboost low\` - Light bass\n\n*Supported formats:* MP3, M4A, OGG, WAV, etc.`,
+//                 }, { quoted: m });
+//             }
             
-            // --- Apply Bass Boost Filter ---
-            const finalFilePath = await applyBassBoost(rawFilePath, outputFilePath);
+//             const quoted = m.message.extendedTextMessage.contextInfo.quotedMessage;
+//             const msgType = getContentType(quoted);
+            
+//             console.log("Detected message type:", msgType);
+            
+//             // Check if it's audio
+//             let media;
+//             let isAudio = false;
+            
+//             if (msgType === 'audioMessage') {
+//                 media = quoted.audioMessage;
+//                 isAudio = true;
+//             } else if (msgType === 'documentMessage' && quoted.documentMessage) {
+//                 const mime = quoted.documentMessage.mimetype || '';
+//                 const fileName = quoted.documentMessage.fileName || '';
+//                 if (mime.includes('audio/') || 
+//                     fileName.match(/\.(mp3|m4a|ogg|wav|flac|aac)$/i)) {
+//                     media = quoted.documentMessage;
+//                     isAudio = true;
+//                 }
+//             }
+            
+//             if (!isAudio || !media) {
+//                 return await sock.sendMessage(chatId, {
+//                     text: "❌ *Please reply to an audio file!*\n\nSupported: MP3, M4A, OGG, WAV, etc.",
+//                 }, { quoted: m });
+//             }
+            
+//             // Determine bass level
+//             let bassLevel = "high";
+//             if (args.length > 0) {
+//                 const level = args[0].toLowerCase();
+//                 if (['low', 'medium', 'high'].includes(level)) {
+//                     bassLevel = level;
+//                 }
+//             }
+            
+//             // Bass settings
+//             const bassSettings = {
+//                 low: "bass=g=5",
+//                 medium: "bass=g=10",
+//                 high: "bass=g=15"
+//             };
+            
+//             const bassFilter = bassSettings[bassLevel];
+            
+//             // Send processing message
+//             await sock.sendMessage(chatId, {
+//                 text: `⏳ *Processing Audio...*\n\n🎚️ *Bass Level:* ${bassLevel.toUpperCase()}\n🔧 *Filter:* ${bassFilter}\n\nPlease wait, this may take a moment...`,
+//             }, { quoted: m });
+            
+//             // Create temp directory
+//             const tempDir = path.join(process.cwd(), "tmp", "bassboost");
+//             await fs.mkdir(tempDir, { recursive: true });
+            
+//             const timestamp = Date.now();
+//             const randomId = Math.random().toString(36).substring(7);
+            
+//             const inputFile = path.join(tempDir, `input_${timestamp}_${randomId}.mp3`);
+//             const outputFile = path.join(tempDir, `bass_${timestamp}_${randomId}.mp3`);
+            
+//             // Download audio
+//             const downloadType = msgType === 'audioMessage' ? 'audio' : 'document';
+//             const stream = await downloadContentFromMessage(media, downloadType);
+            
+//             const chunks = [];
+//             for await (const chunk of stream) {
+//                 chunks.push(chunk);
+//             }
+            
+//             const audioData = Buffer.concat(chunks);
+//             await fs.writeFile(inputFile, audioData);
+            
+//             console.log(`✅ Downloaded: ${audioData.length} bytes`);
+            
+//             // Apply bass boost with FFmpeg
+//             try {
+//                 // First, check if FFmpeg is available
+//                 try {
+//                     await execPromise('ffmpeg -version');
+//                 } catch (ffmpegError) {
+//                     throw new Error("FFmpeg is not installed! Please install FFmpeg first.");
+//                 }
+                
+//                 // FFmpeg command for bass boost
+//                 // Using equalizer filter for better compatibility
+//                 const ffmpegCmd = `ffmpeg -i "${inputFile}" -af "equalizer=f=110:width_type=h:width=300:g=${bassLevel === 'low' ? 8 : bassLevel === 'medium' ? 12 : 15}" -acodec libmp3lame -b:a 192k "${outputFile}" -y`;
+                
+//                 console.log("Running FFmpeg command:", ffmpegCmd);
+                
+//                 await execPromise(ffmpegCmd);
+                
+//                 // Check if output file was created
+//                 try {
+//                     await fs.access(outputFile);
+//                 } catch {
+//                     throw new Error("FFmpeg failed to create output file");
+//                 }
+                
+//                 const outputStats = await fs.stat(outputFile);
+//                 if (outputStats.size === 0) {
+//                     throw new Error("Output file is empty");
+//                 }
+                
+//                 // Read and send the processed audio
+//                 const outputBuffer = await fs.readFile(outputFile);
+                
+//                 await sock.sendMessage(chatId, {
+//                     audio: outputBuffer,
+//                     mimetype: 'audio/mpeg',
+//                     fileName: `bass_boosted_${bassLevel}.mp3`,
+//                     caption: `✅ *Bass Boost Applied!*\n\n🎚️ *Level:* ${bassLevel.toUpperCase()}\n📊 *Original:* ${formatSize(audioData.length)}\n🎛️ *Processed:* ${formatSize(outputBuffer.length)}\n\n🔊 Enhanced with FFmpeg`
+//                 }, { quoted: m });
+                
+//                 console.log("✅ Bass boost completed successfully");
+                
+//             } catch (ffmpegError) {
+//                 console.error("FFmpeg error:", ffmpegError);
+                
+//                 // Fallback option if FFmpeg fails
+//                 await sock.sendMessage(chatId, {
+//                     text: `⚠️ *FFmpeg Error:* ${ffmpegError.message}\n\nTrying alternative method...`,
+//                 }, { quoted: m });
+                
+//                 // Try alternative processing or send original
+//                 await sendFallbackAudio(sock, chatId, inputFile, bassLevel, m);
+//             }
+            
+//             // Cleanup
+//             try {
+//                 await fs.unlink(inputFile).catch(() => {});
+//                 await fs.unlink(outputFile).catch(() => {});
+//             } catch (cleanupError) {
+//                 console.error("Cleanup error:", cleanupError);
+//             }
+            
+//         } catch (error) {
+//             console.error("Bassboost command error:", error);
+            
+//             if (m.key?.remoteJid) {
+//                 await sock.sendMessage(m.key.remoteJid, {
+//                     text: `❌ *Bass Boost Failed*\n\nError: ${error.message}\n\n💡 *Tips:*\n1. Make sure FFmpeg is installed\n2. Try with shorter audio\n3. Check file format`,
+//                 }, { quoted: m });
+//             }
+//         }
+//     }
+// };
 
-            // --- Send the final MP3 file ---
-            await sendFileAsync(
-                finalFilePath, 
-                "✅ Bass Boost applied successfully!"
-            );
+// // Helper function to format file size
+// function formatSize(bytes) {
+//     if (bytes === 0) return '0 Bytes';
+//     const k = 1024;
+//     const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+//     const i = Math.floor(Math.log(bytes) / Math.log(k));
+//     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+// }
 
-            // --- CLEANUP (Async) ---
-            if (finalFilePath && fsSync.existsSync(finalFilePath)) {
-                await fs.unlink(finalFilePath);
-            }
-            if (rawFilePath && fsSync.existsSync(rawFilePath)) {
-                 await fs.unlink(rawFilePath);
-            }
-
-        } catch (error) {
-            console.error("Error in .bassboost:", error);
-            await sock.sendMessage(chatId, {
-                text: `❌ Bass Boost failed: ${error.message}`,
-            }, { quoted: m });
-
-            // --- CLEANUP on ERROR (Async) ---
-            if (outputFilePath && fsSync.existsSync(outputFilePath)) {
-                await fs.unlink(outputFilePath);
-            }
-            if (rawFilePath && fsSync.existsSync(rawFilePath)) {
-                await fs.unlink(rawFilePath);
-            }
-        }
-    },
-};
+// // Fallback function if FFmpeg fails
+// async function sendFallbackAudio(sock, chatId, inputFile, bassLevel, m) {
+//     try {
+//         const buffer = await fs.readFile(inputFile);
+        
+//         await sock.sendMessage(chatId, {
+//             audio: buffer,
+//             mimetype: 'audio/mpeg',
+//             caption: `⚠️ *Bass Boost (Simulation)*\n\nFFmpeg failed, sending original audio.\nRequested level: ${bassLevel.toUpperCase()}\n\n💡 *Install FFmpeg for real processing:*\n• Windows: Download from ffmpeg.org\n• Mac: \`brew install ffmpeg\`\n• Linux: \`sudo apt install ffmpeg\``
+//         }, { quoted: m });
+//     } catch (fallbackError) {
+//         throw fallbackError;
+//     }
+// }
