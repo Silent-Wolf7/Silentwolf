@@ -1,399 +1,13 @@
-// // // commands/ai/deepseek.js
-// // import fetch from "node-fetch";
-
-// // export default {
-// //   name: "deepseek",
-// //   alias: ["ds", "ai", "ask"],
-// //   desc: "Talk with DeepSeek AI via OpenRouter 🤖 (FREE CREDITS AVAILABLE)",
-// //   category: "AI",
-// //   usage: ".deepseek <your question>",
-// //   async execute(sock, m, args) {
-// //     try {
-// //       const query = args.join(" ");
-// //       if (!query) {
-// //         return sock.sendMessage(m.key.remoteJid, {
-// //           text: "🤖 *DeepSeek AI Assistant*\n━━━━━━━━━━━━━━━━━\nI'm ready to help! Powered by DeepSeek through OpenRouter.\n\n*Usage:* .deepseek What is quantum computing?\n*Example:* .deepseek Write a Python function"
-// //         }, { quoted: m });
-// //       }
-
-// //       // Use OpenRouter API key from .env
-// //       const apiKey = process.env.OPENROUTER_API_KEY;
-      
-// //       if (!apiKey) {
-// //         return sock.sendMessage(m.key.remoteJid, {
-// //           text: "🔑 *API Key Missing*\n━━━━━━━━━━━━━━━━━\nAdd to your .env file:\n\nOPENROUTER_API_KEY=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\n\nThen restart your bot."
-// //         }, { quoted: m });
-// //       }
-
-// //       // Show typing indicator
-// //       await sock.sendPresenceUpdate('composing', m.key.remoteJid);
-
-// //       // Call OpenRouter API (with DeepSeek model)
-// //       const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-// //         method: "POST",
-// //         headers: {
-// //           "Content-Type": "application/json",
-// //           "Authorization": `Bearer ${apiKey}`,
-// //           "HTTP-Referer": "https://silent-wolf-bot.com", // Required by OpenRouter
-// //           "X-Title": "Silent Wolf AI Bot" // Optional but good practice
-// //         },
-// //         body: JSON.stringify({
-// //           model: "deepseek/deepseek-chat", // Using DeepSeek through OpenRouter
-// //           messages: [
-// //             {
-// //               role: "system",
-// //               content: `You are Silent Wolf, a helpful AI assistant with a wolf-themed personality. You're wise, mysterious, and helpful. Provide accurate answers with a touch of wolf/wilderness metaphors when appropriate.
-
-// // Guidelines:
-// // 1. Be concise but thorough
-// // 2. Format with *bold* for emphasis
-// // 3. Use emojis sparingly: 🐺✨🌲🌑
-// // 4. For code, use proper formatting
-// // 5. Keep answers under 1500 tokens`
-// //             },
-// //             {
-// //               role: "user",
-// //               content: query
-// //             }
-// //           ],
-// //           temperature: 0.7,
-// //           max_tokens: 1500,
-// //           stream: false
-// //         })
-// //       });
-
-// //       // Check response status
-// //       if (!response.ok) {
-// //         const errorText = await response.text();
-// //         console.error("OpenRouter API Error:", response.status, errorText);
-        
-// //         let errorMessage = "Unknown error";
-// //         try {
-// //           const errorData = JSON.parse(errorText);
-// //           errorMessage = errorData.error?.message || errorData.error || errorText;
-// //         } catch (e) {
-// //           errorMessage = errorText.substring(0, 200);
-// //         }
-        
-// //         // Handle specific errors
-// //         if (response.status === 429) {
-// //           return sock.sendMessage(m.key.remoteJid, {
-// //             text: "⏳ *Rate Limited*\nPlease wait 30 seconds before trying again.\n\nOpenRouter has rate limits to prevent abuse."
-// //           }, { quoted: m });
-// //         }
-        
-// //         if (response.status === 402) {
-// //           return sock.sendMessage(m.key.remoteJid, {
-// //             text: "💳 *Free Credits Used*\n━━━━━━━━━━━━━━━━━\nYou've used your 100 free credits!\n\n*Get more:*\n1. Visit https://openrouter.ai/account\n2. Click 'Add Credits' ($1 = ~500 requests)\n3. Or create new account with different email\n\n*Alternative:* Use .localai for completely free AI"
-// //           }, { quoted: m });
-// //         }
-        
-// //         if (response.status === 401) {
-// //           return sock.sendMessage(m.key.remoteJid, {
-// //             text: "🔐 *Invalid API Key*\nCheck your OPENROUTER_API_KEY in .env\n\nGet new key: https://openrouter.ai/api-keys"
-// //           }, { quoted: m });
-// //         }
-        
-// //         throw new Error(`API Error (${response.status}): ${errorMessage}`);
-// //       }
-
-// //       // Parse successful response
-// //       const data = await response.json();
-// //       let reply = data.choices?.[0]?.message?.content || "No response generated.";
-      
-// //       // Get usage stats
-// //       const usage = data.usage || {};
-// //       const promptTokens = usage.prompt_tokens || 0;
-// //       const completionTokens = usage.completion_tokens || 0;
-// //       const totalTokens = usage.total_tokens || 0;
-// //       const cost = data.usage?.total_cost || 0;
-
-// //       // Format the reply
-// //       const formattedReply = `
-// // 🐺✨ *Silent Wolf AI* 
-// // ━━━━━━━━━━━━━━━━━
-// // ${reply}
-// // ━━━━━━━━━━━━━━━━━
-// // 📊 *Stats:* ${totalTokens} tokens (${promptTokens}→${completionTokens})
-// // 💰 *Cost:* $${cost.toFixed(6)}
-// // 🤖 *Model:* DeepSeek Chat
-// // 🔗 *Via:* OpenRouter
-// // `;
-
-// //       // Send the response
-// //       await sock.sendMessage(m.key.remoteJid, { text: formattedReply }, { quoted: m });
-
-// //     } catch (err) {
-// //       console.error("DeepSeek Error:", err);
-      
-// //       // User-friendly error message
-// //       let errorMessage = err.message;
-// //       if (err.message.includes("fetch failed") || err.message.includes("network")) {
-// //         errorMessage = "Network error. Check your internet connection.";
-// //       }
-      
-// //       await sock.sendMessage(m.key.remoteJid, {
-// //         text: `❌ *AI Service Error*\n━━━━━━━━━━━━━━━━━\n${errorMessage}\n\n*Troubleshooting:*\n1. Check if API key is valid\n2. Visit https://openrouter.ai/activity to see credits\n3. Try .ai command for other options`
-// //       }, { quoted: m });
-// //     }
-// //   }
-// // };
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// // commands/ai/deepseek.js
-// import fetch from "node-fetch";
-
-// export default {
-//   name: "deepseek",
-//   alias: ["ds", "ai", "ask"],
-//   desc: "Talk with DeepSeek AI via OpenRouter 🤖 (FREE CREDITS AVAILABLE)",
-//   category: "AI",
-//   usage: ".deepseek <your question>",
-//   async execute(sock, m, args) {
-//     try {
-//       const query = args.join(" ");
-//       if (!query) {
-//         return sock.sendMessage(m.key.remoteJid, {
-//           text: "🤖 *DeepSeek AI Assistant*\n━━━━━━━━━━━━━━━━━\nI'm ready to help! Powered by DeepSeek through OpenRouter.\n\n*Usage:* .deepseek What is quantum computing?\n*Example:* .deepseek Write a Python function"
-//         }, { quoted: m });
-//       }
-
-//       // === IMPROVED: Config validation with detailed error reporting ===
-//       const apiKey = process.env.OPENROUTER_API_KEY;
-      
-//       if (!apiKey) {
-//         console.error("❌ OPENROUTER_API_KEY is undefined or empty");
-//         return sock.sendMessage(m.key.remoteJid, {
-//           text: "🔑 *Configuration Error - API Key Missing*\n━━━━━━━━━━━━━━━━━\nThe API key is not configured on this server.\n\n*For Panel Deployment:*\n1. Go to your panel's Environment Variables section\n2. Add: `OPENROUTER_API_KEY=your_actual_key_here`\n3. Restart the application\n\n*Get your key:* https://openrouter.ai/api-keys\n\n*Note:* Never commit actual keys to code!"
-//         }, { quoted: m });
-//       }
-
-//       // Check if it's the example key
-//       if (apiKey.includes('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')) {
-//         return sock.sendMessage(m.key.remoteJid, {
-//           text: "⚠️ *Invalid Example Key Detected*\n━━━━━━━━━━━━━━━━━\nYou're using the example key from the code.\n\n*Fix:*\n1. Get your real key from https://openrouter.ai/api-keys\n2. Update environment variable in your panel\n3. Restart the bot"
-//         }, { quoted: m });
-//       }
-
-//       // === IMPROVED: Validate key format ===
-//       if (apiKey.length < 30 || !apiKey.startsWith('sk-or-')) {
-//         console.error(`Invalid API key format (length: ${apiKey.length})`);
-//         return sock.sendMessage(m.key.remoteJid, {
-//           text: "⚠️ *Invalid API Key Format*\n━━━━━━━━━━━━━━━━━\nYour API key appears to be malformed.\n\n*Expected format:* `sk-or-v1-...`\n*Your key length:* " + apiKey.length + " chars\n\n*Fix:* Get a new key from OpenRouter dashboard."
-//         }, { quoted: m });
-//       }
-
-//       // Show typing indicator
-//       await sock.sendPresenceUpdate('composing', m.key.remoteJid);
-
-//       // === IMPROVED: Enhanced fetch with timeout and better error handling ===
-//       const controller = new AbortController();
-//       const timeoutId = setTimeout(() => controller.abort(), 30000); // 30-second timeout
-
-//       try {
-//         const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-//           method: "POST",
-//           headers: {
-//             "Content-Type": "application/json",
-//             "Authorization": `Bearer ${apiKey}`,
-//             "HTTP-Referer": "https://silent-wolf-bot.com",
-//             "X-Title": "Silent Wolf AI Bot",
-//             "User-Agent": "SilentWolfBot/1.0 (WhatsApp AI Assistant)"
-//           },
-//           body: JSON.stringify({
-//             model: "deepseek/deepseek-chat",
-//             messages: [
-//               {
-//                 role: "system",
-//                 content: `You are Silent Wolf, a helpful AI assistant with a wolf-themed personality. You're wise, mysterious, and helpful. Provide accurate answers with a touch of wolf/wilderness metaphors when appropriate.`
-//               },
-//               {
-//                 role: "user",
-//                 content: query
-//               }
-//             ],
-//             temperature: 0.7,
-//             max_tokens: 1500,
-//             stream: false
-//           }),
-//           signal: controller.signal
-//         });
-
-//         clearTimeout(timeoutId);
-
-//         // === IMPROVED: Detailed response status handling ===
-//         if (!response.ok) {
-//           let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
-//           let errorDetails = "";
-          
-//           try {
-//             const errorData = await response.json();
-//             errorDetails = errorData.error?.message || JSON.stringify(errorData);
-//             console.error("OpenRouter API Error Details:", errorData);
-//           } catch (parseError) {
-//             errorDetails = await response.text().catch(() => "Could not read error body");
-//           }
-
-//           console.error(`API Error ${response.status}:`, errorDetails);
-
-//           // Specific error handling
-//           switch(response.status) {
-//             case 401:
-//               return sock.sendMessage(m.key.remoteJid, {
-//                 text: `🔐 *Authentication Failed*\n━━━━━━━━━━━━━━━━━\nYour API key is invalid or expired.\n\n*Details:* ${errorDetails}\n\n*Fix:*\n1. Check key at https://openrouter.ai/api-keys\n2. Generate new key if needed\n3. Update panel environment`
-//               }, { quoted: m });
-              
-//             case 402:
-//               return sock.sendMessage(m.key.remoteJid, {
-//                 text: "💳 *Out of Credits*\n━━━━━━━━━━━━━━━━━\nYour OpenRouter credits have been used.\n\n*Solutions:*\n1. Add credits: https://openrouter.ai/account\n2. Create new account for free credits\n3. Use .localai for free alternative\n\n*Note:* 100 free credits ≈ 50-100 requests"
-//               }, { quoted: m });
-              
-//             case 429:
-//               return sock.sendMessage(m.key.remoteJid, {
-//                 text: "⏳ *Rate Limited*\n━━━━━━━━━━━━━━━━━\nToo many requests. Please wait 60 seconds.\n\nOpenRouter limits: ~10 requests/minute on free tier"
-//               }, { quoted: m });
-              
-//             case 404:
-//               return sock.sendMessage(m.key.remoteJid, {
-//                 text: "🔗 *Endpoint Not Found*\n━━━━━━━━━━━━━━━━━\nThe API endpoint may have changed.\n\n*Check:* https://openrouter.ai/docs for updates"
-//               }, { quoted: m });
-              
-//             default:
-//               return sock.sendMessage(m.key.remoteJid, {
-//                 text: `❌ *API Error ${response.status}*\n━━━━━━━━━━━━━━━━━\n${errorMessage}\n\n*Details:* ${errorDetails.substring(0, 100)}...\n\n*Troubleshooting:*\n1. Check https://status.openrouter.ai for service status\n2. Verify network connectivity from your server\n3. Try again in a few minutes`
-//               }, { quoted: m });
-//           }
-//         }
-
-//         // === IMPROVED: Parse successful response ===
-//         const data = await response.json();
-//         let reply = data.choices?.[0]?.message?.content || "No response generated.";
-        
-//         // Get usage stats
-//         const usage = data.usage || {};
-//         const promptTokens = usage.prompt_tokens || 0;
-//         const completionTokens = usage.completion_tokens || 0;
-//         const totalTokens = usage.total_tokens || 0;
-//         const cost = usage.total_cost || usage.cost || 0;
-
-//         // Format the reply (trim if too long for WhatsApp)
-//         const maxLength = 4000; // WhatsApp limit
-//         if (reply.length > maxLength) {
-//           reply = reply.substring(0, maxLength - 100) + "...\n\n[Response truncated due to length limits]";
-//         }
-
-//         const formattedReply = `
-// 🐺✨ *Silent Wolf AI* 
-// ━━━━━━━━━━━━━━━━━
-// ${reply}
-// ━━━━━━━━━━━━━━━━━
-// 📊 *Stats:* ${totalTokens} tokens (${promptTokens}→${completionTokens})
-// 💰 *Cost:* $${cost.toFixed(6)}
-// 🤖 *Model:* DeepSeek Chat
-// 🔗 *Via:* OpenRouter
-// `;
-
-//         await sock.sendMessage(m.key.remoteJid, { text: formattedReply }, { quoted: m });
-
-//       } catch (fetchError) {
-//         clearTimeout(timeoutId);
-        
-//         // === IMPROVED: Network error handling ===
-//         if (fetchError.name === 'AbortError') {
-//           console.error("Request timeout after 30 seconds");
-//           return sock.sendMessage(m.key.remoteJid, {
-//             text: "⏱️ *Request Timeout*\n━━━━━━━━━━━━━━━━━\nThe AI service took too long to respond.\n\n*Possible causes:*\n1. Server network is slow\n2. OpenRouter is experiencing high load\n3. Your query is too complex\n\n*Try:*\n• Shorter questions\n• Try again later\n• Check server network connectivity"
-//           }, { quoted: m });
-//         }
-
-//         console.error("Fetch error:", fetchError);
-        
-//         if (fetchError.message.includes('network') || fetchError.message.includes('fetch failed')) {
-//           return sock.sendMessage(m.key.remoteJid, {
-//             text: "🌐 *Network Connection Failed*\n━━━━━━━━━━━━━━━━━\nCannot connect to OpenRouter API from this server.\n\n*Panel Deployment Issues:*\n1. Server may block external API calls\n2. Firewall restriction on outgoing HTTPS\n3. DNS resolution problem\n\n*Solutions:*\n1. Contact hosting support about outgoing HTTPS\n2. Check server can ping api.openrouter.ai\n3. Try from different server location"
-//           }, { quoted: m });
-//         }
-        
-//         throw fetchError; // Re-throw for outer catch
-//       }
-
-//     } catch (err) {
-//       console.error("DeepSeek Command Error:", err);
-      
-//       // Final fallback error
-//       await sock.sendMessage(m.key.remoteJid, {
-//         text: `❌ *Unexpected Error*\n━━━━━━━━━━━━━━━━━\n${err.message}\n\n*Debug Info:*\n• Time: ${new Date().toISOString()}\n• Panel: Check server logs\n\n*Quick Fixes:*\n1. Verify environment variables in panel\n2. Check server has internet access\n3. Restart the bot application\n\n*Need help?* Check the panel's error logs for more details.`
-//       }, { quoted: m });
-//     }
-//   }
-// };
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 // commands/ai/deepseek.js
 import fetch from "node-fetch";
 
 export default {
   name: "deepseek",
-  alias: ["ds", "wolfseek", "deepai", "deep"],
-  desc: "Talk with WolfBot's DeepSeek AI 🐺🧠",
+  alias: ["ds", "wolfseek", "deepai", "deep", "wolf"],
+  desc: "Talk with WolfBot's DeepSeek AI via OpenRouter 🐺🧠",
   category: "AI",
   usage: ".deepseek <your question>",
-  cooldown: 3,
+  cooldown: 2,
 
   async execute(sock, m, args) {
     const jid = m.key.remoteJid;
@@ -404,33 +18,30 @@ export default {
       if (!query) {
         return sock.sendMessage(jid, {
           text: `🐺 *WolfBot DeepSeek* 🧠\n\n` +
+                `*Powered by WolfTech*\n\n` +
                 `*Usage:* .deepseek <your question>\n\n` +
                 `*Examples:*\n` +
-                `• .deepseek Explain machine learning\n` +
-                `• .deepseek Write Python code for fibonacci\n` +
-                `• .deepseek What is quantum physics?\n\n` +
-                `*Features:*\n` +
-                `• 128K context window\n` +
-                `• Code generation\n` +
-                `• Reasoning & analysis\n` +
-                `• WolfBot wisdom 🐺`
+                `• deepseek Explain quantum computing\n` +
+                `• deepseek Write Python code\n` +
+                `• deepseek Solve math problem\n\n` +
+                `🐺 *WolfBot Enhanced*`
         }, { quoted: m });
       }
 
       // Validate query length
-      if (query.length > 5000) {
+      if (query.length > 8000) {
         return sock.sendMessage(jid, {
-          text: "❌ *Query too long!*\n\nMaximum 5000 characters allowed."
+          text: "❌ *Query too long!*\n\nMaximum 8000 characters allowed."
         }, { quoted: m });
       }
 
       // Get API key from embedded function
-      const apiKey = getDeepSeekKey();
+      const apiKey = getOpenRouterKey();
       
-      if (!apiKey || !apiKey.startsWith('sk-')) {
+      if (!apiKey || !apiKey.startsWith('sk-or-v1')) {
         return sock.sendMessage(jid, {
           text: `⚠️ *API Configuration*\n\n` +
-                `DeepSeek API key needs setup.\n` +
+                `OpenRouter API key needs setup.\n` +
                 `Contact WolfBot administrator.`
         }, { quoted: m });
       }
@@ -441,30 +52,36 @@ export default {
         return sock.sendMessage(jid, {
           text: `⏳ *Please wait*\n\n` +
                 `Cooldown: ${cooldown.remaining}s remaining\n` +
-                `WolfBot is thinking deeply... 🐺`
+                `WolfBot is thinking... 🐺`
         }, { quoted: m });
       }
 
       // Send processing message
       const processingMsg = await sock.sendMessage(jid, {
-        text: "🌌 *WolfBot is analyzing with DeepSeek...*\n\n" +
-              "Processing your request... 🧠"
+        text: "🌌 *WolfBot is thinking with DeepSeek...*\n\n" +
+              "Powered by OpenRouter API 🧠"
       }, { quoted: m });
 
-      // Call DeepSeek API
-      const result = await callDeepSeek(query, apiKey);
+      // Call OpenRouter API for DeepSeek
+      const result = await callOpenRouter(query, apiKey, "deepseek/deepseek-chat");
 
       if (!result.success) {
         let errorAction = "Try rephrasing your question";
+        let errorEmoji = "❌";
         
-        if (result.error?.includes("rate limit")) {
+        if (result.error?.includes("rate limit") || result.error?.includes("quota")) {
           errorAction = "Wait a few minutes and try again";
-        } else if (result.error?.includes("key")) {
+          errorEmoji = "⏳";
+        } else if (result.error?.includes("key") || result.error?.includes("auth")) {
           errorAction = "Contact bot administrator";
+          errorEmoji = "🔑";
+        } else if (result.error?.includes("context")) {
+          errorAction = "Make your question shorter";
+          errorEmoji = "📝";
         }
         
         return sock.sendMessage(jid, {
-          text: `❌ *DeepSeek Error*\n\n` +
+          text: `${errorEmoji} *OpenRouter Error*\n\n` +
                 `*Error:* ${result.error}\n\n` +
                 `💡 *Action:* ${errorAction}`,
           edit: processingMsg.key
@@ -472,7 +89,12 @@ export default {
       }
 
       // Format and send response
-      const wolfReply = formatDeepSeekResponse(result.reply, query, result.usage);
+      const wolfReply = formatDeepSeekResponse(
+        result.reply, 
+        query, 
+        result.usage,
+        result.model
+      );
 
       await sock.sendMessage(jid, {
         text: wolfReply,
@@ -480,18 +102,18 @@ export default {
       });
 
       // Log usage
-      logUsage(m.sender, query, result.usage);
+      logUsage(m.sender, query, result.usage, result.model);
 
     } catch (err) {
       console.error("❌ [DEEPSEEK ERROR]:", err);
       
       await sock.sendMessage(jid, {
-        text: `❌ *WolfBot Error*\n\n` +
+        text: `🐺 *WolfBot Error*\n\n` +
               `*Details:* ${err.message || 'Unknown error'}\n\n` +
-              `🔧 *Try:*\n` +
-              `• Asking again in a moment\n` +
-              `• Shorter questions\n` +
-              `• .gpt for alternative`
+              `🔧 *Solutions:*\n` +
+              `• Try again in a moment\n` +
+              `• Use shorter questions\n` +
+              `• Use .gpt for alternative AI`
       }, { quoted: m });
     }
   }
@@ -501,11 +123,11 @@ export default {
 // EMBEDDED API KEY FUNCTION (Obfuscated)
 // ============================================
 
-function getDeepSeekKey() {
-  // Method 1: Character codes array (obfuscated)
+function getOpenRouterKey() {
+  // Method 1: Character codes array (obfuscated) - OpenRouter key
   const keyParts = [
-    // sk-a2960968ba5d448c91d4a43238f9a7d5
-    [115, 107, 45, 97, 50, 57, 54, 48, 57, 54, 56, 98, 97, 53, 100, 52, 52, 56, 99, 57, 49, 100, 52, 97, 52, 51, 50, 51, 56, 102, 57, 97, 55, 100, 53]
+    // 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
+    [115, 107, 45, 111, 114, 45, 118, 49, 45, 101, 54, 50, 53, 49, 100, 55, 50, 49, 102, 50, 51, 54, 54, 55, 98, 102, 98, 51, 97, 56, 98, 98, 97, 52, 49, 51, 51, 49, 50, 100, 53, 55, 53, 98, 57, 101, 49, 49, 55, 54, 55, 51, 100, 97, 99, 55, 50, 56, 97, 53, 54, 50, 97, 100, 57, 101, 101, 99, 48, 50, 101, 48, 52]
   ];
 
   // Convert character codes to string
@@ -514,28 +136,17 @@ function getDeepSeekKey() {
   ).join('');
 
   // Verify it's correct
-  if (apiKey.startsWith('sk-') && apiKey.length === 35) {
+  if (apiKey.startsWith('sk-or-v1') && apiKey.length === 73) {
     return apiKey;
   }
 
-  // Alternative method: Base64 encoded
-  return getDeepSeekKeyAlternative();
+  // Alternative method: Hex encoding
+  return getOpenRouterKeyAlternative();
 }
 
-function getDeepSeekKeyAlternative() {
-  // Base64 obfuscation
-  const base64Parts = [
-    "c2stYTI5NjA5NjhiYTVkNDQ4Yzk",
-    "xZDRhNDMyMzhmOWE3ZDU="
-  ];
-  
-  const base64Key = base64Parts.join('');
-  return Buffer.from(base64Key, 'base64').toString('utf-8');
-}
-
-// Backup method using hex
-function getDeepSeekKeyBackup() {
-  const hexString = "736b2d6132393630393638626135643434386339316434613433323338663961376435";
+function getOpenRouterKeyAlternative() {
+  // Hex string for OpenRouter key
+  const hexString = "736b2d6f722d76312d65363235316437323166323336363762666233613862626134313333313264353735623965313137363733646163373238613536326164396565633032653034";
   let result = '';
   for (let i = 0; i < hexString.length; i += 2) {
     result += String.fromCharCode(parseInt(hexString.substr(i, 2), 16));
@@ -543,29 +154,43 @@ function getDeepSeekKeyBackup() {
   return result;
 }
 
+// Backup method using Base64 segments
+function getOpenRouterKeyBackup() {
+  const base64Segments = [
+    "c2stb3ItdjEtZTYyNTFkNzIxZjIzNjY3YmZiM2E4YmJhNDEzMzEyZDU3NWI5ZTExNzY3M2RhYzcyOGE1NjJhZDllZWMwMmUwNA=="
+  ];
+  
+  return Buffer.from(base64Segments[0], 'base64').toString('utf-8');
+}
+
 // ============================================
-// DEEPSEEK API CALL FUNCTION
+// OPENROUTER API CALL FUNCTION
 // ============================================
 
-async function callDeepSeek(query, apiKey, model = "deepseek-chat") {
+async function callOpenRouter(query, apiKey, model = "deepseek/deepseek-chat") {
   try {
-    const response = await fetch("https://api.deepseek.com/chat/completions", {
+    const startTime = Date.now();
+    
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${apiKey}`,
-        "Accept": "application/json"
+        "HTTP-Referer": "https://wolfbot.com", // Required by OpenRouter
+        "X-Title": "WolfBot WhatsApp", // Optional but good practice
+        "User-Agent": "WolfBot/1.0 (+https://wolfbot.com)"
       },
       body: JSON.stringify({
         model: model,
         messages: [
           {
             role: "system",
-            content: `You are WolfBot, a helpful AI assistant with a wolf personality. 
-                     You're knowledgeable, friendly, and slightly playful like a wise wolf. 
-                     You can write code, explain concepts, and help with analysis.
-                     Use wolf-related metaphors when appropriate.
-                     Always be helpful and accurate.`
+            content: `You are WolfBot, a helpful AI assistant powered by DeepSeek through OpenRouter.
+                     Personality: Wise, friendly, and knowledgeable like a wolf spirit guide.
+                     Style: Clear, concise, helpful. Use wolf metaphors occasionally.
+                     Capabilities: Answer questions, write code, explain concepts, solve problems.
+                     Important: Format code blocks properly. Be accurate and helpful.
+                     Sign off as WolfBot.`
           },
           {
             role: "user",
@@ -573,29 +198,32 @@ async function callDeepSeek(query, apiKey, model = "deepseek-chat") {
           }
         ],
         temperature: 0.7,
-        max_tokens: 2000,
+        max_tokens: 4000, // OpenRouter allows more tokens
         top_p: 0.9,
-        frequency_penalty: 0,
-        presence_penalty: 0,
+        frequency_penalty: 0.1,
+        presence_penalty: 0.1,
         stream: false
       }),
-      timeout: 45000 // 45 seconds
+      timeout: 60000 // 60 seconds for OpenRouter
     });
 
     const data = await response.json();
+    const latency = Date.now() - startTime;
 
     if (!response.ok) {
-      console.error("DeepSeek API Error:", data);
+      console.error("OpenRouter API Error:", data);
       
       let errorMessage = "API request failed";
       const status = response.status;
       
-      // DeepSeek specific error handling
+      // OpenRouter specific error handling
       const errorMap = {
-        400: "Invalid request - check your query",
+        400: "Invalid request - check your query format",
         401: "Invalid API key",
+        402: "Payment required - credits exhausted",
         429: "Rate limit exceeded - try again later",
-        500: "DeepSeek server error",
+        500: "OpenRouter server error",
+        502: "Model provider error",
         503: "Service temporarily unavailable"
       };
       
@@ -603,14 +231,17 @@ async function callDeepSeek(query, apiKey, model = "deepseek-chat") {
         errorMessage = errorMap[status];
       } else if (data.error?.message) {
         errorMessage = data.error.message;
-      } else if (data.msg) {
-        errorMessage = data.msg;
+      } else if (data.error?.type) {
+        errorMessage = `Error: ${data.error.type}`;
+      } else if (data.error) {
+        errorMessage = String(data.error);
       }
       
       return {
         success: false,
         error: errorMessage,
         code: status,
+        latency,
         details: data
       };
     }
@@ -618,31 +249,41 @@ async function callDeepSeek(query, apiKey, model = "deepseek-chat") {
     if (!data.choices || !data.choices[0]?.message?.content) {
       return {
         success: false,
-        error: "No response from DeepSeek AI"
+        error: "No response from AI model",
+        latency,
+        details: data
       };
     }
+
+    // Extract OpenRouter specific data
+    const modelInfo = data.model || model;
+    const usage = data.usage || {};
+    const totalCost = data.usage?.total_cost || 0;
 
     return {
       success: true,
       reply: data.choices[0].message.content.trim(),
-      model: data.model,
+      model: modelInfo,
       usage: {
-        prompt_tokens: data.usage?.prompt_tokens || 0,
-        completion_tokens: data.usage?.completion_tokens || 0,
-        total_tokens: data.usage?.total_tokens || 0
+        prompt_tokens: usage.prompt_tokens || 0,
+        completion_tokens: usage.completion_tokens || 0,
+        total_tokens: usage.total_tokens || 0,
+        total_cost: totalCost
       },
-      id: data.id
+      id: data.id,
+      latency,
+      provider: "OpenRouter"
     };
 
   } catch (error) {
-    console.error("DeepSeek Network Error:", error);
+    console.error("OpenRouter Network Error:", error);
     
     let errorMsg = "Network error occurred";
     
     if (error.name === 'AbortError') {
-      errorMsg = "Request timeout (45 seconds)";
+      errorMsg = "Request timeout (60 seconds)";
     } else if (error.code === 'ECONNREFUSED') {
-      errorMsg = "Cannot connect to DeepSeek API";
+      errorMsg = "Cannot connect to OpenRouter API";
     } else if (error.message?.includes('fetch')) {
       errorMsg = "Network connection failed";
     }
@@ -659,7 +300,7 @@ async function callDeepSeek(query, apiKey, model = "deepseek-chat") {
 // HELPER FUNCTIONS
 // ============================================
 
-function formatDeepSeekResponse(reply, query, usage = {}) {
+function formatDeepSeekResponse(reply, query, usage = {}, model = "DeepSeek") {
   // Truncate if too long for WhatsApp
   const maxLength = 3500;
   let finalReply = reply;
@@ -671,18 +312,27 @@ function formatDeepSeekResponse(reply, query, usage = {}) {
 
   // Format code blocks better for WhatsApp
   finalReply = finalReply.replace(/```(\w+)?\n([\s\S]*?)```/g, (match, lang, code) => {
-    return `*📝 Code:*\n${code}\n`;
+    const language = lang ? ` (${lang})` : '';
+    return `📝 *Code${language}:*\n${code}\n`;
   });
 
+  // Format cost if available
+  const costInfo = usage.total_cost ? 
+    `\n💰 *Cost:* $${usage.total_cost.toFixed(6)}` : 
+    '';
+    
   const tokenInfo = usage.total_tokens ? 
-    `\n📊 *Tokens:* ${usage.prompt_tokens || '?'} + ${usage.completion_tokens || '?'} = ${usage.total_tokens}` : 
+    `📊 *Tokens:* ${usage.prompt_tokens || '?'} + ${usage.completion_tokens || '?'} = ${usage.total_tokens}` : 
     '';
 
   return `🐺 *WolfBot DeepSeek* 🧠
 ━━━━━━━━━━━━━━━━
 
+*Powered by OpenRouter*
+*Model:* ${model}
+
 🗨️ *Query:*
-${query.length > 80 ? query.substring(0, 80) + '...' : query}
+${query.length > 100 ? query.substring(0, 100) + '...' : query}
 
 ━━━━━━━━━━━━━━━━
 
@@ -691,15 +341,16 @@ ${finalReply}
 
 ━━━━━━━━━━━━━━━━
 ${tokenInfo}
-🔧 *Model:* DeepSeek Chat
+${costInfo}
+⏱️ *Latency:* ${usage.latency || '?'}ms
 🌐 *Context:* 128K tokens
-🐺 *WolfBot Assistant* v1.0`;
+🐺 *WolfBot Assistant* v2.0`;
 }
 
 // Cooldown management
 const userCooldowns = new Map();
 
-function checkCooldown(userId, cooldownSeconds = 3) {
+function checkCooldown(userId, cooldownSeconds = 2) {
   const now = Date.now();
   const lastUsed = userCooldowns.get(userId);
   
@@ -715,17 +366,20 @@ function checkCooldown(userId, cooldownSeconds = 3) {
   return { allowed: true };
 }
 
-function logUsage(userId, query, usage) {
-  const timestamp = new Date().toISOString();
+function logUsage(userId, query, usage, model) {
+  const timestamp = new Date().toLocaleString();
   const logEntry = {
     userId,
     timestamp,
     queryLength: query.length,
     tokens: usage.total_tokens || 0,
-    model: "deepseek-chat"
+    cost: usage.total_cost || 0,
+    model: model || "deepseek-chat",
+    provider: "OpenRouter"
   };
   
-  console.log(`[DEEPSEEK USAGE] ${userId}: ${query.substring(0, 30)}... (${usage.total_tokens || '?'} tokens)`);
+  console.log(`[OPENROUTER USAGE] ${userId}: ${query.substring(0, 30)}... ` +
+              `(${usage.total_tokens || '?'} tokens, $${usage.total_cost || '0'})`);
   return logEntry;
 }
 
@@ -736,23 +390,31 @@ function logUsage(userId, query, usage) {
 export const deepseekUtils = {
   // Core API call
   chat: async (prompt, options = {}) => {
-    const apiKey = getDeepSeekKey();
-    return await callDeepSeek(
-      prompt, 
-      apiKey, 
-      options.model || "deepseek-chat"
-    );
+    const apiKey = getOpenRouterKey();
+    const model = options.model || "deepseek/deepseek-chat";
+    return await callOpenRouter(prompt, apiKey, model);
   },
 
-  // Code generation specific
+  // Available models on OpenRouter
+  listModels: () => {
+    return [
+      { id: "deepseek/deepseek-chat", name: "DeepSeek Chat", description: "General purpose AI" },
+      { id: "deepseek/deepseek-coder", name: "DeepSeek Coder", description: "Code generation" },
+      { id: "meta-llama/llama-3.1-70b-instruct", name: "Llama 3.1 70B", description: "Meta's large model" },
+      { id: "google/gemini-pro-1.5", name: "Gemini Pro", description: "Google's AI" },
+      { id: "openai/gpt-4o-mini", name: "GPT-4o Mini", description: "OpenAI's small model" }
+    ];
+  },
+
+  // Code generation with DeepSeek Coder
   generateCode: async (prompt, language = "python") => {
-    const systemPrompt = `You are a code generation assistant. Generate ${language} code for:`;
-    const apiKey = getDeepSeekKey();
+    const systemPrompt = `You are WolfBot Code Assistant. Generate clean, efficient ${language} code with comments.`;
+    const apiKey = getOpenRouterKey();
     
-    const result = await callDeepSeek(
-      `${systemPrompt}\n\n${prompt}`,
+    const result = await callOpenRouter(
+      `${systemPrompt}\n\nUser request: ${prompt}`,
       apiKey,
-      "deepseek-coder" // Use coder model if available
+      "deepseek/deepseek-coder"
     );
     
     return result;
@@ -760,26 +422,28 @@ export const deepseekUtils = {
 
   // API status check
   getApiStatus: () => {
-    const key = getDeepSeekKey();
+    const key = getOpenRouterKey();
     return {
-      configured: key && key.startsWith('sk-'),
+      configured: key && key.startsWith('sk-or-v1'),
       length: key?.length || 0,
-      valid: key?.length === 35,
-      model: "deepseek-chat"
+      valid: key?.length === 73,
+      provider: "OpenRouter",
+      modelsAvailable: 5
     };
   },
 
   // Test connection
   testConnection: async () => {
     try {
-      const apiKey = getDeepSeekKey();
-      const result = await callDeepSeek("Say 'WolfBot is connected'", apiKey);
+      const apiKey = getOpenRouterKey();
+      const result = await callOpenRouter("Say 'WolfBot via OpenRouter is connected'", apiKey);
       
       return {
         success: result.success,
-        message: result.success ? 'DeepSeek API is working' : result.error,
+        message: result.success ? 'OpenRouter API is working' : result.error,
         latency: result.latency,
-        apiKeyValid: apiKey && apiKey.length === 35
+        cost: result.usage?.total_cost || 0,
+        apiKeyValid: apiKey && apiKey.length === 73
       };
     } catch (error) {
       return {
@@ -801,34 +465,77 @@ export const deepseekUtils = {
     return {
       activeUsers: userCooldowns.size,
       cooldownEnabled: true,
-      cooldownSeconds: 3
+      cooldownSeconds: 2,
+      provider: "OpenRouter"
     };
+  },
+
+  // Switch model dynamically
+  switchModel: async (prompt, modelId) => {
+    const apiKey = getOpenRouterKey();
+    return await callOpenRouter(prompt, apiKey, modelId);
   }
 };
 
-// Optional: Different models available
-export const DEEPSEEK_MODELS = {
-  CHAT: "deepseek-chat",
-  CODER: "deepseek-coder",
-  REASONER: "deepseek-reasoner" // If available
+// OpenRouter specific models
+export const OPENROUTER_MODELS = {
+  DEEPSEEK_CHAT: "deepseek/deepseek-chat",
+  DEEPSEEK_CODER: "deepseek/deepseek-coder",
+  LLAMA_70B: "meta-llama/llama-3.1-70b-instruct",
+  GEMINI_PRO: "google/gemini-pro-1.5",
+  GPT4_MINI: "openai/gpt-4o-mini",
+  CLAUDE_3_5: "anthropic/claude-3.5-sonnet"
 };
 
-// Optional: Advanced features
-async function callDeepSeekWithHistory(messages, apiKey, model = "deepseek-chat") {
-  // For conversation history support
-  const response = await fetch("https://api.deepseek.com/chat/completions", {
+// Optional: Get model pricing info
+export const MODEL_PRICING = {
+  "deepseek/deepseek-chat": {
+    input: 0.00014, // $ per 1K tokens
+    output: 0.00028,
+    context: 128000
+  },
+  "deepseek/deepseek-coder": {
+    input: 0.00014,
+    output: 0.00028,
+    context: 128000
+  }
+};
+
+// Advanced: Conversation with history
+async function callOpenRouterWithHistory(messages, apiKey, model = "deepseek/deepseek-chat") {
+  const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "Authorization": `Bearer ${apiKey}`
+      "Authorization": `Bearer ${apiKey}`,
+      "HTTP-Referer": "https://wolfbot.com"
     },
     body: JSON.stringify({
       model: model,
       messages: messages,
       temperature: 0.7,
-      max_tokens: 2000
+      max_tokens: 4000
     })
   });
 
   return response.json();
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
