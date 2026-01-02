@@ -182,10 +182,10 @@ export default {
         7: 'Image + Text - Balanced layout'
       };
       
-      let successMsg = `✅ *Menu Style Updated*\n\n`;
+      let successMsg = `✅ *Menu Style Updated*\n`;
       successMsg += `🎨 New Style: *Style ${styleNum}*\n`;
-      successMsg += `📝 ${styleDescriptions[styleNum]}\n\n`;
-      successMsg += `🔧 Changes applied immediately.\n`;
+      //successMsg += `📝 ${styleDescriptions[styleNum]}\n\n`;
+      //successMsg += `🔧 Changes applied immediately.\n`;
       
       if (cleaned.isLid) {
         successMsg += `📱 *Note:* Changed from linked device\n`;
