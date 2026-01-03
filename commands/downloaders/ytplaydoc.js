@@ -156,7 +156,7 @@ export default {
     try {
       if (args.length === 0) {
         await sock.sendMessage(jid, { 
-          text: `📁 *YouTube Audio as Document*\n\nUsage:\n• \`ytplaydoc song name\`\n• \`ytplaydoc https://youtube.com/...\`\n• \`ytplaydoc artist - song title\`\n\n*Difference from ytplay:*\n• Sends as document file (.mp3)\n• Higher file size limit\n• Can be saved as file\n\nExample: ytplaydoc shape of you`
+          text: `📁 *YouTube Audio as Document*\n\nUsage:\n• \`ytplaydoc song name\`\n• \`ytplaydoc https://youtube.com/...\`\n• \`ytplaydoc artist - song title\`\n`
         }, { quoted: m });
         return;
       }

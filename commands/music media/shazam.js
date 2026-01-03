@@ -1,404 +1,361 @@
-// import axios from 'axios';
-// import fs from 'fs';
-// import { promisify } from 'util';
-// import FormData from 'form-data';
-// import { fileTypeFromBuffer } from 'file-type';
+import acrcloud from "acrcloud";
+import yts from "yt-search";
+import { downloadMediaMessage } from '@whiskeysockets/baileys';
+import fs from "fs";
+import ffmpeg from "fluent-ffmpeg";
+import ffmpegPath from "ffmpeg-static";
+import path from "path";
+import { fileURLToPath } from "url";
 
-// // Promisify fs functions
-// const writeFileAsync = promisify(fs.writeFile);
-// const unlinkAsync = promisify(fs.unlink);
-// const existsAsync = promisify(fs.exists);
-// const mkdirAsync = promisify(fs.mkdir);
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-// // Use dynamic import for baileys since it might be CommonJS
-// let downloadContentFromMessage;
-// try {
-//     const baileys = await import('@whiskeysockets/baileys');
-//     downloadContentFromMessage = baileys.downloadContentFromMessage || 
-//                                  (baileys.default && baileys.default.downloadContentFromMessage);
-// } catch (error) {
-//     console.error('Failed to import baileys:', error);
-// }
+// Set ffmpeg path
+ffmpeg.setFfmpegPath(ffmpegPath);
 
-// export default {
-//     name: "shazam",
-//     description: "Identify music from audio/video",
-//     aliases: ["identify", "music", "song", "recognize"],
+// Function to trim audio to 15 seconds
+function trimTo15Seconds(inputBuffer, outputPath) {
+  return new Promise((resolve, reject) => {
+    const tempDir = path.join(__dirname, '..', 'temp');
+    if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
+
+    const inputFile = path.join(tempDir, `input-${Date.now()}.mp4`);
+    const outputFile = outputPath;
+
+    fs.writeFileSync(inputFile, inputBuffer);
+
+    ffmpeg(inputFile)
+      .setStartTime(0)
+      .duration(15)
+      .output(outputFile)
+      .on('end', () => {
+        const trimmed = fs.readFileSync(outputFile);
+        fs.unlinkSync(inputFile);
+        fs.unlinkSync(outputFile);
+        resolve(trimmed);
+      })
+      .on('error', (err) => {
+        // Clean up on error
+        if (fs.existsSync(inputFile)) fs.unlinkSync(inputFile);
+        if (fs.existsSync(outputFile)) fs.unlinkSync(outputFile);
+        reject(err);
+      })
+      .run();
+  });
+}
+
+export default {
+  name: 'shazam',
+  aliases: ['whatsong', 'findsong', 'identify', 'musicid'],
+  description: 'Identify a song from a short audio or video and show details.',
+  category: 'Search',
+
+  async execute(sock, m, args) {
+    const jid = m.key.remoteJid;
     
-//     async execute(sock, m, args, metadata) {
-//         const jid = m.key.remoteJid;
-//         console.log('🎵 Shazam command triggered');
-        
-//         try {
-//             // Check if message has audio/video or is a reply to audio/video
-//             let mediaMessage = null;
-//             let mediaType = null;
-            
-//             // Check current message
-//             if (m.message?.audioMessage) {
-//                 mediaMessage = m.message.audioMessage;
-//                 mediaType = 'audio';
-//                 console.log('Found audio in current message');
-//             } else if (m.message?.videoMessage) {
-//                 mediaMessage = m.message.videoMessage;
-//                 mediaType = 'video';
-//                 console.log('Found video in current message');
-//             }
-//             // Check quoted message
-//             else if (m.message?.extendedTextMessage?.contextInfo?.quotedMessage) {
-//                 const quotedMsg = m.message.extendedTextMessage.contextInfo.quotedMessage;
-//                 console.log('Checking quoted message');
-                
-//                 if (quotedMsg.audioMessage) {
-//                     mediaMessage = quotedMsg.audioMessage;
-//                     mediaType = 'audio';
-//                     console.log('Found audio in quoted message');
-//                 } else if (quotedMsg.videoMessage) {
-//                     mediaMessage = quotedMsg.videoMessage;
-//                     mediaType = 'video';
-//                     console.log('Found video in quoted message');
-//                 }
-//             }
+    try {
+      // Check if message is a reply
+      const quoted = m.message?.extendedTextMessage?.contextInfo?.quotedMessage;
+      const hasAudio = m.message?.audioMessage;
+      const hasVideo = m.message?.videoMessage;
+      
+      // If no audio/video and no quoted message, show help
+      if (!quoted && !hasAudio && !hasVideo) {
+        await sock.sendMessage(jid, {
+          text: `🎵 *Music Identification*\n\n` +
+                `*Identify songs from:*\n` +
+                `• Voice/audio messages (send or reply)\n` +
+                `• Video messages (audio will be extracted)\n` +
+                `• Or search by song name\n\n` +
+                `*Usage:*\n` +
+                `• Reply to audio/video with "shazam"\n` +
+                `• Send audio/video with caption "shazam"\n` +
+                `• \`shazam song name\` (text search)\n\n` +
+                `*Examples:*\n` +
+                `• Reply to song → "shazam"\n` +
+                `• shazam shape of you\n` +
+                `• shazam blinding lights the weeknd\n\n` +
+                `*Note:* Best with 10-15 second clear audio clips`
+        }, { quoted: m });
+        return;
+      }
 
-//             if (!mediaMessage || !mediaType) {
-//                 console.log('No media found, sending instructions');
-//                 await sock.sendMessage(jid, { 
-//                     text: `🎵 *Shazam Music Recognition*\n\nSend or reply to an audio/video message with music.\n\nExample: Reply to an audio message with "!shazam"` 
-//                 }, { quoted: m });
-//                 return;
-//             }
+      // Send initial status
+      const statusMsg = await sock.sendMessage(jid, {
+        text: `🔍 *Listening to audio...*\n\n` +
+              `🎵 Analyzing audio sample...\n` +
+              `⏳ Please wait 10-15 seconds`
+      }, { quoted: m });
 
-//             // Send initial analyzing message
-//             console.log('Sending initial message');
-//             let analyzingMsg;
-//             try {
-//                 analyzingMsg = await sock.sendMessage(jid, { 
-//                     text: `🔍 *Downloading ${mediaType}...*` 
-//                 }, { quoted: m });
-//             } catch (sendError) {
-//                 console.error('Failed to send initial message:', sendError);
-//                 analyzingMsg = null;
-//             }
+      let audioBuffer;
+      let searchQuery = '';
 
-//             // Download the media
-//             let audioBuffer;
-//             try {
-//                 console.log('Downloading media...');
-                
-//                 // Try different download methods
-//                 if (sock.downloadMediaMessage) {
-//                     // Method 1: downloadMediaMessage (if available)
-//                     audioBuffer = await sock.downloadMediaMessage(mediaMessage);
-//                 } else if (downloadContentFromMessage) {
-//                     // Method 2: downloadContentFromMessage from baileys
-//                     const stream = await downloadContentFromMessage(mediaMessage, mediaType);
-//                     const chunks = [];
-//                     for await (const chunk of stream) {
-//                         chunks.push(chunk);
-//                     }
-//                     audioBuffer = Buffer.concat(chunks);
-//                 } else if (sock.downloadAndSaveMediaMessage) {
-//                     // Method 3: downloadAndSaveMediaMessage
-//                     const tempPath = await sock.downloadAndSaveMediaMessage(mediaMessage);
-//                     audioBuffer = fs.readFileSync(tempPath);
-//                     fs.unlinkSync(tempPath); // Clean up
-//                 } else {
-//                     throw new Error('No supported download method found');
-//                 }
-                
-//                 if (!audioBuffer || audioBuffer.length === 0) {
-//                     throw new Error('Downloaded audio is empty');
-//                 }
-                
-//                 console.log(`Downloaded ${mediaType}: ${audioBuffer.length} bytes`);
-                
-//                 if (analyzingMsg) {
-//                     await sock.sendMessage(jid, { 
-//                         text: `✅ Downloaded ${(audioBuffer.length / 1024).toFixed(0)} KB\n🎵 *Identifying music...*`,
-//                         edit: analyzingMsg.key
-//                     });
-//                 }
-                
-//             } catch (downloadError) {
-//                 console.error('Download error:', downloadError);
-//                 await sock.sendMessage(jid, { 
-//                     text: `❌ Failed to download ${mediaType}.\nError: ${downloadError.message}`
-//                 }, { quoted: m });
-//                 return;
-//             }
+      // Handle text-based search
+      if (args.length > 0 && !quoted && !hasAudio && !hasVideo) {
+        searchQuery = args.join(' ');
+        await sock.sendMessage(jid, {
+          text: `🔍 *Searching for:* "${searchQuery}"\n\n` +
+                `📡 Looking up song information...`,
+          edit: statusMsg.key
+        });
 
-//             // Create temp directory
-//             const tempDir = './temp';
-//             if (!await existsAsync(tempDir)) {
-//                 await mkdirAsync(tempDir, { recursive: true });
-//             }
-            
-//             const tempFilePath = `${tempDir}/audio_${Date.now()}.mp3`;
-            
-//             try {
-//                 console.log('Saving to temp file:', tempFilePath);
-//                 await writeFileAsync(tempFilePath, audioBuffer);
-                
-//                 if (analyzingMsg) {
-//                     await sock.sendMessage(jid, { 
-//                         text: `📤 *Processing audio...*`,
-//                         edit: analyzingMsg.key
-//                     });
-//                 }
-                
-//                 // Try to identify using different methods
-//                 console.log('Trying to identify music...');
-//                 let result;
-                
-//                 // Method 1: Try direct API with buffer
-//                 try {
-//                     result = await identifyMusicDirect(audioBuffer);
-//                 } catch (error1) {
-//                     console.log('Method 1 failed:', error1.message);
-                    
-//                     // Method 2: Try with file upload
-//                     try {
-//                         result = await identifyMusicWithUpload(tempFilePath);
-//                     } catch (error2) {
-//                         console.log('Method 2 failed:', error2.message);
-                        
-//                         // Method 3: Try simple API
-//                         result = await identifyMusicSimple(audioBuffer);
-//                     }
-//                 }
-                
-//                 if (result && result.success) {
-//                     console.log('Song identified:', result.track.title);
-//                     const resultText = formatShazamResult(result.track);
-                    
-//                     if (analyzingMsg) {
-//                         await sock.sendMessage(jid, { 
-//                             text: resultText,
-//                             edit: analyzingMsg.key
-//                         });
-//                     } else {
-//                         await sock.sendMessage(jid, { 
-//                             text: resultText
-//                         }, { quoted: m });
-//                     }
-                    
-//                 } else {
-//                     console.log('No match found');
-//                     await sock.sendMessage(jid, { 
-//                         text: `❌ *Could not identify music*\n\n*Tips:*\n• Use 10-30 seconds of clear audio\n• Less background noise\n• Popular songs work better`
-//                     }, { quoted: m });
-//                 }
-                
-//             } catch (error) {
-//                 console.error('Processing error:', error);
-//                 await sock.sendMessage(jid, { 
-//                     text: `❌ Processing error: ${error.message}`
-//                 }, { quoted: m });
-//             } finally {
-//                 // Cleanup
-//                 try {
-//                     if (await existsAsync(tempFilePath)) {
-//                         await unlinkAsync(tempFilePath);
-//                         console.log('Temp file cleaned up');
-//                     }
-//                 } catch (e) {
-//                     console.log('Cleanup error:', e.message);
-//                 }
-//             }
+        // Search YouTube for the song
+        const searchResults = await yts(searchQuery);
+        
+        if (!searchResults.videos || searchResults.videos.length === 0) {
+          await sock.sendMessage(jid, {
+            text: `❌ *No results found for:* "${searchQuery}"\n\n` +
+                  `Try:\n` +
+                  `• More specific search terms\n` +
+                  `• Include artist name\n` +
+                  `• Send audio sample instead`,
+            edit: statusMsg.key
+          });
+          return;
+        }
 
-//         } catch (error) {
-//             console.error('Shazam command error:', error);
-//             await sock.sendMessage(jid, { 
-//                 text: `❌ Error: ${error.message}` 
-//             }, { quoted: m });
-//         }
-//     }
-// };
+        const video = searchResults.videos[0];
+        const resultText = `🎵 *Song Found!*\n\n` +
+                          `*Title:* ${video.title}\n` +
+                          `*Duration:* ${video.timestamp}\n` +
+                          `*Channel:* ${video.author.name}\n` +
+                          `*Views:* ${video.views}\n` +
+                          `*Uploaded:* ${video.ago}\n\n` +
+                          `🔗 *YouTube Link:* ${video.url}\n\n` +
+                          `*Source:* YouTube Search`;
 
-// // Method 1: Direct identification with buffer
-// async function identifyMusicDirect(audioBuffer) {
-//     try {
-//         console.log('Trying direct identification...');
-        
-//         // Use a simple Shazam API endpoint
-//         const formData = new FormData();
-//         formData.append('file', audioBuffer, {
-//             filename: 'audio.mp3',
-//             contentType: 'audio/mpeg'
-//         });
-        
-//         const response = await axios.post('https://api.audd.io/', formData, {
-//             headers: {
-//                 ...formData.getHeaders(),
-//                 'Accept': 'application/json'
-//             },
-//             params: {
-//                 api_token: 'test', // You'll need to get a real API key from audd.io
-//                 return: 'spotify'
-//             },
-//             timeout: 30000
-//         });
-        
-//         const data = response.data;
-//         console.log('Direct API response:', data);
-        
-//         if (data.status === 'success' && data.result) {
-//             const track = data.result;
-//             return {
-//                 success: true,
-//                 track: {
-//                     title: track.title || 'Unknown',
-//                     artist: track.artist || 'Unknown',
-//                     album: track.album || 'Unknown Album',
-//                     releaseDate: track.release_date || 'Unknown',
-//                     genre: track.genre || 'Unknown Genre',
-//                     spotifyUrl: track.spotify?.external_urls?.spotify || '',
-//                     confidence: track.score ? `${Math.round(track.score * 100)}%` : 'Unknown'
-//                 }
-//             };
-//         }
-        
-//         throw new Error('No match found');
-        
-//     } catch (error) {
-//         console.error('Direct identification error:', error.message);
-//         throw error;
-//     }
-// }
+        await sock.sendMessage(jid, {
+          text: resultText,
+          edit: statusMsg.key
+        });
 
-// // Method 2: Identification with file upload
-// async function identifyMusicWithUpload(filePath) {
-//     try {
-//         console.log('Trying identification with upload...');
-        
-//         // Read the file
-//         const fileBuffer = fs.readFileSync(filePath);
-        
-//         // Try public Shazam API
-//         const formData = new FormData();
-//         formData.append('audio', fileBuffer, {
-//             filename: 'audio.mp3',
-//             contentType: 'audio/mpeg'
-//         });
-        
-//         const response = await axios.post('https://shazam-api-free.p.rapidapi.com/shazam', formData, {
-//             headers: {
-//                 ...formData.getHeaders(),
-//                 'X-RapidAPI-Key': 'your-rapidapi-key-here', // You need to get this from RapidAPI
-//                 'X-RapidAPI-Host': 'shazam-api-free.p.rapidapi.com'
-//             },
-//             timeout: 30000
-//         });
-        
-//         const data = response.data;
-//         console.log('Upload API response:', data);
-        
-//         if (data && data.track) {
-//             const track = data.track;
-//             return {
-//                 success: true,
-//                 track: {
-//                     title: track.title || track.heading?.title || 'Unknown',
-//                     artist: track.subtitle || track.heading?.subtitle || 'Unknown',
-//                     album: track.sections?.[0]?.metadata?.[0]?.text || 'Unknown Album',
-//                     genre: track.genres?.primary || 'Unknown Genre',
-//                     spotifyUrl: track.share?.href || '',
-//                     confidence: 'High'
-//                 }
-//             };
-//         }
-        
-//         throw new Error('No match found');
-        
-//     } catch (error) {
-//         console.error('Upload identification error:', error.message);
-//         throw error;
-//     }
-// }
+        // Try to send thumbnail
+        try {
+          const imageResponse = await fetch(video.thumbnail);
+          const imageBuffer = Buffer.from(await imageResponse.arrayBuffer());
+          
+          await sock.sendMessage(jid, {
+            image: imageBuffer,
+            caption: `🎵 ${video.title}`
+          });
+        } catch (imageError) {
+          console.log('Could not fetch thumbnail:', imageError.message);
+        }
+        return;
+      }
 
-// // Method 3: Simple identification (fallback)
-// async function identifyMusicSimple(audioBuffer) {
-//     try {
-//         console.log('Trying simple identification...');
-        
-//         // Use a free public API
-//         const formData = new FormData();
-//         formData.append('file', audioBuffer, 'audio.mp3');
-        
-//         // This is a demo API - you might need to find a working one
-//         const response = await axios.post('https://api.musicidentify.com/identify', formData, {
-//             headers: formData.getHeaders(),
-//             timeout: 20000
-//         });
-        
-//         const data = response.data;
-//         console.log('Simple API response:', data);
-        
-//         if (data.success && data.result) {
-//             return {
-//                 success: true,
-//                 track: {
-//                     title: data.result.title || 'Unknown',
-//                     artist: data.result.artist || 'Unknown',
-//                     album: data.result.album || 'Unknown Album',
-//                     confidence: data.result.confidence || 'Unknown'
-//                 }
-//             };
-//         }
-        
-//         // If all APIs fail, return a demo response for testing
-//         return {
-//             success: true,
-//             track: {
-//                 title: "Demo Song",
-//                 artist: "Demo Artist",
-//                 album: "Demo Album",
-//                 releaseDate: "2023",
-//                 genre: "Pop",
-//                 confidence: "High (Demo Mode)",
-//                 note: "This is a demo response. Get a real API key from audd.io or RapidAPI for actual identification."
-//             }
-//         };
-        
-//     } catch (error) {
-//         console.error('Simple identification error:', error.message);
-//         throw error;
-//     }
-// }
+      // Handle audio/video recognition
+      let mediaBuffer;
+      let mediaType = '';
 
-// // Format result for display
-// function formatShazamResult(track) {
-//     let result = `🎵 *MUSIC IDENTIFIED*\n`;
-//     result += `━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
-    
-//     result += `📀 *Title:* ${track.title}\n`;
-//     result += `🎤 *Artist:* ${track.artist}\n`;
-    
-//     if (track.album && track.album !== 'Unknown Album') {
-//         result += `💿 *Album:* ${track.album}\n`;
-//     }
-    
-//     if (track.releaseDate && track.releaseDate !== 'Unknown') {
-//         result += `📅 *Released:* ${track.releaseDate}\n`;
-//     }
-    
-//     if (track.genre && track.genre !== 'Unknown Genre') {
-//         result += `🎼 *Genre:* ${track.genre}\n`;
-//     }
-    
-//     if (track.confidence) {
-//         result += `🎯 *Confidence:* ${track.confidence}\n`;
-//     }
-    
-//     if (track.spotifyUrl) {
-//         result += `\n🔗 *Spotify:* ${track.spotifyUrl}\n`;
-//     }
-    
-//     if (track.note) {
-//         result += `\n📝 *Note:* ${track.note}\n`;
-//     }
-    
-//     result += `\n✨ *Tip:* Clear audio without background noise works best!`;
-    
-//     return result;
-// }
+      // Determine media source
+      if (quoted) {
+        // Quoted message
+        if (quoted.audioMessage) {
+          mediaType = 'audio';
+        } else if (quoted.videoMessage) {
+          mediaType = 'video';
+        } else {
+          await sock.sendMessage(jid, {
+            text: `❌ *No audio found in quoted message*\n\n` +
+                  `Please quote an audio or video message.`,
+            edit: statusMsg.key
+          });
+          return;
+        }
+
+        // Download quoted media
+        mediaBuffer = await downloadMediaMessage(
+          { 
+            key: { 
+              remoteJid: jid, 
+              id: m.message?.extendedTextMessage?.contextInfo?.stanzaId || m.key.id 
+            }, 
+            message: quoted 
+          },
+          'buffer',
+          {},
+          { logger: console }
+        );
+
+      } else if (hasAudio || hasVideo) {
+        // Direct message with audio/video
+        mediaType = hasAudio ? 'audio' : 'video';
+        
+        mediaBuffer = await downloadMediaMessage(
+          { key: m.key, message: m.message },
+          'buffer',
+          {},
+          { logger: console }
+        );
+      }
+
+      if (!mediaBuffer) {
+        await sock.sendMessage(jid, {
+          text: `❌ *Failed to download media*\n\n` +
+                `Please try again with a different audio/video.`,
+          edit: statusMsg.key
+        });
+        return;
+      }
+
+      await sock.sendMessage(jid, {
+        text: `🔍 *Listening to audio...*\n\n` +
+              `${mediaType === 'audio' ? '🎵' : '🎬'} Processing ${mediaType}...\n` +
+              `⏳ Trimming to 15 seconds...`,
+        edit: statusMsg.key
+      });
+
+      // Trim audio to 15 seconds
+      const tempDir = path.join(__dirname, '..', 'temp');
+      if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
+      
+      const trimmedPath = path.join(tempDir, `trimmed-${Date.now()}.mp4`);
+      audioBuffer = await trimTo15Seconds(mediaBuffer, trimmedPath);
+
+      await sock.sendMessage(jid, {
+        text: `🔍 *Listening to audio...*\n\n` +
+              `✅ Audio sample ready\n` +
+              `📡 Identifying song...`,
+        edit: statusMsg.key
+      });
+
+      // Initialize ACRCloud
+      const acr = new acrcloud({
+        host: 'identify-ap-southeast-1.acrcloud.com',
+        access_key: '26afd4eec96b0f5e5ab16a7e6e05ab37',
+        access_secret: 'wXOZIqdMNZmaHJP1YDWVyeQLg579uK2CfY6hWMN8'
+      });
+
+      // Identify song
+      const { status, metadata } = await acr.identify(audioBuffer);
+
+      if (status.code !== 0 || !metadata?.music?.length) {
+        await sock.sendMessage(jid, {
+          text: `❌ *Could not recognize the song*\n\n` +
+                `*Possible reasons:*\n` +
+                `• Audio too short/noisy\n` +
+                `• Song not in database\n` +
+                `• Multiple songs in sample\n\n` +
+                `*Try:*\n` +
+                `• Longer audio sample (15+ seconds)\n` +
+                `• Clearer audio quality\n` +
+                `• Search by text: \`shazam song name\``,
+          edit: statusMsg.key
+        });
+        return;
+      }
+
+      const music = metadata.music[0];
+      const { title, artists, album, genres, release_date, external_metadata } = music;
+
+      // Search YouTube for the identified song
+      const query = `${title} ${artists?.[0]?.name || ''}`;
+      const search = await yts(query);
+
+      // Build result message
+      let result = `🎶 *Song Identified!*\n\n`;
+      result += `🎧 *Title:* ${title || 'Unknown'}\n`;
+      
+      if (artists && artists.length > 0) {
+        result += `👤 *Artist(s):* ${artists.map(a => a.name).join(', ')}\n`;
+      }
+      
+      if (album?.name) {
+        result += `💿 *Album:* ${album.name}\n`;
+      }
+      
+      if (genres && genres.length > 0) {
+        result += `🎼 *Genre:* ${genres.map(g => g.name).join(', ')}\n`;
+      }
+      
+      if (release_date) {
+        result += `📅 *Released:* ${release_date}\n`;
+      }
+      
+      // Add streaming links if available
+      if (external_metadata) {
+        if (external_metadata.youtube?.url) {
+          result += `\n🔗 *YouTube:* ${external_metadata.youtube.url}\n`;
+        }
+        if (external_metadata.spotify?.track?.external_urls?.spotify) {
+          result += `🎵 *Spotify:* ${external_metadata.spotify.track.external_urls.spotify}\n`;
+        }
+        if (external_metadata.apple_music?.url) {
+          result += `🍎 *Apple Music:* ${external_metadata.apple_music.url}\n`;
+        }
+      }
+      
+      // Add YouTube search result if no streaming links
+      if (search?.videos?.[0]?.url && !external_metadata?.youtube?.url) {
+        result += `\n🔗 *YouTube Search:* ${search.videos[0].url}\n`;
+      }
+
+      // Add search links
+      const searchQueryEncoded = encodeURIComponent(`${title} ${artists?.[0]?.name || ''}`);
+      result += `\n*Search Online:*\n`;
+      result += `• Google: https://google.com/search?q=${searchQueryEncoded}\n`;
+      result += `• YouTube: https://youtube.com/results?search_query=${searchQueryEncoded}\n`;
+      
+      if (artists?.[0]?.name) {
+        result += `• Deezer: https://deezer.com/search/${searchQueryEncoded}`;
+      }
+
+      // Send result
+      await sock.sendMessage(jid, {
+        text: result,
+        edit: statusMsg.key
+      });
+
+      // Try to send album art
+      try {
+        if (album?.cover) {
+          const imageResponse = await fetch(album.cover);
+          const imageBuffer = Buffer.from(await imageResponse.arrayBuffer());
+          
+          await sock.sendMessage(jid, {
+            image: imageBuffer,
+            caption: `🎵 ${title} - ${artists?.[0]?.name || 'Unknown Artist'}`
+          });
+        } else if (search?.videos?.[0]?.thumbnail) {
+          const imageResponse = await fetch(search.videos[0].thumbnail);
+          const imageBuffer = Buffer.from(await imageResponse.arrayBuffer());
+          
+          await sock.sendMessage(jid, {
+            image: imageBuffer,
+            caption: `🎵 ${title} - ${artists?.[0]?.name || 'Unknown Artist'}`
+          });
+        }
+      } catch (imageError) {
+        console.log('Could not fetch album art:', imageError.message);
+      }
+
+      console.log(`✅ Song identified: ${title} - ${artists?.[0]?.name || 'Unknown'}`);
+
+    } catch (error) {
+      console.error("❌ Shazam error:", error);
+      
+      let errorMessage = `❌ *Error identifying song*\n\n`;
+      
+      if (error.message.includes('timeout')) {
+        errorMessage += `Request timed out.\n`;
+        errorMessage += `Try again with shorter audio.`;
+      } else if (error.message.includes('network') || error.message.includes('ENOTFOUND')) {
+        errorMessage += `Network error.\n`;
+        errorMessage += `Check your internet connection.`;
+      } else if (error.message.includes('ffmpeg')) {
+        errorMessage += `Audio processing failed.\n`;
+        errorMessage += `Try sending audio file instead of video.`;
+      } else if (error.message.includes('downloadMediaMessage')) {
+        errorMessage += `Failed to download media.\n`;
+        errorMessage += `Make sure the audio/video is accessible.`;
+      } else {
+        errorMessage += `Error: ${error.message.substring(0, 100)}`;
+      }
+      
+      await sock.sendMessage(jid, {
+        text: errorMessage
+      }, { quoted: m });
+    }
+  }
+};

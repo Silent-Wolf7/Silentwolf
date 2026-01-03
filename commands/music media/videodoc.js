@@ -87,9 +87,9 @@ const extractYouTubeId = (url) => {
 
 // Main command
 export default {
-  name: "video",
-  aliases: ["vid", "ytv", "ytvideo", "ytmp4"],
-  description: "Download YouTube videos with quality options",
+  name: "videodoc",
+  //aliases: ["vdoc", "docvideo", "ytdoc"],
+  description: "Download YouTube videos and send as document (bypasses WhatsApp limits)",
   async execute(sock, m, args) {
     const jid = m.key.remoteJid;
     const qualityOptions = ["144", "240", "360", "480", "720", "1080"];
@@ -97,7 +97,7 @@ export default {
     try {
       if (args.length === 0) {
         await sock.sendMessage(jid, { 
-          text: `🎬 *YouTube Video Downloader*\n\nUsage:\n• \`video [quality] song name\`\n• \`video [quality] https://youtube.com/...\`\n\n*Qualities:* ${qualityOptions.join(", ")}\n\n*Examples:*\n• \`video 720 shape of you\`\n• \`video 1080 https://youtube.com/watch?v=...\`\n• \`video dancinha do tiktok\` (default: 720p)\n\n*Note:* Videos are compressed to fit WhatsApp limits.`
+          text: `📁 *YouTube Video as Document*\n\n*Sends videos as documents for larger size limits*\n\nUsage:\n• \`videodoc [quality] song name\`\n• \`videodoc [quality] https://youtube.com/...\`\n\n*Qualities:* ${qualityOptions.join(", ")}\n\n`
         }, { quoted: m });
         return;
       }
@@ -119,17 +119,16 @@ export default {
         }
       }
 
-      console.log(`🎬 [VIDEO] Request: "${searchQuery}" Quality: ${quality}p`);
+      console.log(`📁 [VIDEODOC] Request: "${searchQuery}" Quality: ${quality}p`);
 
       // Send initial status
       const statusMsg = await sock.sendMessage(jid, { 
-        text: `🔍 *Searching*: "${searchQuery}"\n📹 *Quality:* ${quality}p`
+        text: `📁 *Document Mode*\n🔍 *Searching:* "${searchQuery}"\n📊 *Quality:* ${quality}p`
       }, { quoted: m });
 
       // Determine if input is YouTube link or search query
       let videoUrl = '';
       let videoTitle = '';
-      let videoThumbnail = '';
       
       // Check if it's a URL
       const isUrl = searchQuery.startsWith('http://') || searchQuery.startsWith('https://');
@@ -149,27 +148,24 @@ export default {
         // Fetch video info
         try {
           await sock.sendMessage(jid, { 
-            text: `🔍 *Searching*: "${searchQuery}"\n📹 *Quality:* ${quality}p\n📡 Fetching video info...`,
+            text: `📁 *Document Mode*\n🔍 *Searching:* "${searchQuery}"\n📊 *Quality:* ${quality}p\n📡 Fetching video info...`,
             edit: statusMsg.key 
           });
           
           const { videos } = await yts({ videoId });
           if (videos && videos.length > 0) {
             videoTitle = videos[0].title;
-            videoThumbnail = videos[0].thumbnail || `https://i.ytimg.com/vi/${videoId}/maxresdefault.jpg`;
           } else {
             videoTitle = "YouTube Video";
-            videoThumbnail = `https://i.ytimg.com/vi/${videoId}/maxresdefault.jpg`;
           }
         } catch (infoError) {
           videoTitle = "YouTube Video";
-          videoThumbnail = `https://i.ytimg.com/vi/${videoId}/maxresdefault.jpg`;
         }
       } else {
         // Search YouTube
         try {
           await sock.sendMessage(jid, { 
-            text: `🔍 *Searching*: "${searchQuery}"\n📹 *Quality:* ${quality}p\n📡 Looking for best match...`,
+            text: `📁 *Document Mode*\n🔍 *Searching:* "${searchQuery}"\n📊 *Quality:* ${quality}p\n📡 Looking for best match...`,
             edit: statusMsg.key 
           });
           
@@ -184,19 +180,18 @@ export default {
           
           videoUrl = videos[0].url;
           videoTitle = videos[0].title;
-          videoThumbnail = videos[0].thumbnail;
           
-          console.log(`🎬 [VIDEO] Found: ${videoTitle} - ${videoUrl}`);
+          console.log(`📁 [VIDEODOC] Found: ${videoTitle} - ${videoUrl}`);
           
           await sock.sendMessage(jid, { 
-            text: `🔍 *Searching*: "${searchQuery}" ✅\n🎬 *Found:* ${videoTitle}\n📹 *Quality:* ${quality}p\n⬇️ *Getting download link...*`,
+            text: `📁 *Document Mode*\n🔍 *Searching:* "${searchQuery}" ✅\n🎬 *Found:* ${videoTitle}\n📊 *Quality:* ${quality}p\n⬇️ *Getting download link...*`,
             edit: statusMsg.key 
           });
           
         } catch (searchError) {
-          console.error("❌ [VIDEO] Search error:", searchError);
+          console.error("❌ [VIDEODOC] Search error:", searchError);
           await sock.sendMessage(jid, { 
-            text: `❌ Search failed. Please use direct YouTube link.\nExample: video 720 https://youtube.com/watch?v=...`,
+            text: `❌ Search failed. Please use direct YouTube link.\nExample: videodoc 720 https://youtube.com/watch?v=...`,
             edit: statusMsg.key 
           });
           return;
@@ -205,6 +200,7 @@ export default {
 
       // Try multiple APIs sequentially
       let videoResult = null;
+      let actualQuality = quality;
       const apisToTry = [
         () => videoAPIs.izumi.getVideo(videoUrl, quality),
         () => videoAPIs.okatsu.getVideo(videoUrl)
@@ -212,16 +208,17 @@ export default {
       
       for (const apiCall of apisToTry) {
         try {
-          console.log(`🎬 [VIDEO] Trying ${apiCall.name || 'API'}...`);
+          console.log(`📁 [VIDEODOC] Trying API...`);
           const result = await apiCall();
           
           if (result.success) {
             videoResult = result;
-            console.log(`✅ [VIDEO] Got link from ${result.source}: ${result.download.substring(0, 50)}...`);
+            actualQuality = result.quality;
+            console.log(`✅ [VIDEODOC] Got link from ${result.source}`);
             break;
           }
         } catch (apiError) {
-          console.log(`⚠️ [VIDEO] API failed:`, apiError.message);
+          console.log(`⚠️ [VIDEODOC] API failed:`, apiError.message);
           continue;
         }
       }
@@ -236,7 +233,7 @@ export default {
 
       // Update status
       await sock.sendMessage(jid, { 
-        text: `🔍 *Searching*: "${searchQuery}" ✅\n⬇️ *Getting download link...* ✅\n📥 *Downloading video (${quality}p)...*`,
+        text: `📁 *Document Mode*\n🔍 *Searching:* "${searchQuery}" ✅\n⬇️ *Getting download link...* ✅\n📥 *Downloading video (${actualQuality})...*`,
         edit: statusMsg.key 
       });
 
@@ -244,16 +241,17 @@ export default {
       const tempDir = path.join(__dirname, "../temp");
       if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
       
-      const fileName = `${Date.now()}_${videoTitle.substring(0, 30).replace(/[^\w\s.-]/gi, '')}.mp4`;
-      const tempFile = path.join(tempDir, fileName);
+      const sanitizedTitle = videoTitle.replace(/[^\w\s.-]/gi, '').substring(0, 50);
+      const fileName = `${sanitizedTitle}_${actualQuality}.mp4`;
+      const tempFile = path.join(tempDir, `${Date.now()}_${fileName}`);
       
       try {
-        // Download video with progress tracking
+        // Download video
         const response = await axios({
           url: videoResult.download,
           method: 'GET',
           responseType: 'stream',
-          timeout: 120000, // 2 minute timeout for videos
+          timeout: 180000, // 3 minute timeout for larger videos
           headers: {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
             'Referer': 'https://www.youtube.com/'
@@ -271,10 +269,10 @@ export default {
         
         response.data.on('data', (chunk) => {
           downloadedBytes += chunk.length;
-          // Log progress every 5MB
-          if (totalBytes && downloadedBytes % (5 * 1024 * 1024) < chunk.length) {
+          // Log progress every 10MB
+          if (totalBytes && downloadedBytes % (10 * 1024 * 1024) < chunk.length) {
             const percent = Math.round((downloadedBytes / totalBytes) * 100);
-            console.log(`📥 [VIDEO] Download: ${percent}% (${Math.round(downloadedBytes/1024/1024)}MB)`);
+            console.log(`📥 [VIDEODOC] Download: ${percent}% (${Math.round(downloadedBytes/1024/1024)}MB)`);
           }
         });
         
@@ -293,10 +291,10 @@ export default {
           throw new Error("Downloaded file is empty");
         }
 
-        // WhatsApp video limit is ~16MB
-        if (parseFloat(fileSizeMB) > 16) {
+        // WhatsApp document limit is around 100MB
+        if (parseFloat(fileSizeMB) > 100) {
           await sock.sendMessage(jid, { 
-            text: `❌ Video too large: ${fileSizeMB}MB\nMax size: 16MB\nTry lower quality (144-480) or shorter video.`,
+            text: `❌ Video too large: ${fileSizeMB}MB\nMax size: 100MB\nTry lower quality (144-480) or shorter video.`,
             edit: statusMsg.key 
           });
           
@@ -304,49 +302,32 @@ export default {
           return;
         }
 
-        // Get thumbnail if not already available
-        if (!videoThumbnail) {
-          const videoId = extractYouTubeId(videoUrl);
-          videoThumbnail = `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
-        }
-
-        // Send video
+        // Send as document (no thumbnail)
         await sock.sendMessage(jid, {
-          video: fs.readFileSync(tempFile),
-          caption: `🎬 *${videoTitle}*\n📹 ${quality}p • ${fileSizeMB}MB\n > WolfBot`,
-          fileName: `${videoTitle.substring(0, 50)}.mp4`.replace(/[^\w\s.-]/gi, ''),
+          document: fs.readFileSync(tempFile),
           mimetype: 'video/mp4',
-          contextInfo: {
-            externalAdReply: {
-              title: videoTitle.substring(0, 70),
-              body: `YouTube Video • ${quality}p`,
-              mediaType: 2,
-              thumbnailUrl: videoThumbnail,
-              mediaUrl: videoUrl,
-              sourceUrl: videoUrl,
-              showAdAttribution: false
-            }
-          }
+          fileName: fileName,
+          caption: `📁 ${videoTitle}\n📊 ${actualQuality} • ${fileSizeMB}MB\n > WolfBot`
         }, { quoted: m });
 
         // Clean up
         if (fs.existsSync(tempFile)) {
           fs.unlinkSync(tempFile);
-          console.log(`✅ [VIDEO] Cleaned up: ${tempFile}`);
+          console.log(`✅ [VIDEODOC] Cleaned up: ${tempFile}`);
         }
 
         // Success message
         await sock.sendMessage(jid, { 
-          text: `✅ *Video Sent!*\n\n🎬 ${videoTitle}\n📹 ${quality}p • ${fileSizeMB}MB\n⚡ Source: ${videoResult.source}`,
+          text: `✅ *Video Sent as Document!*\n\n📁 ${videoTitle}\n📊 ${actualQuality} • ${fileSizeMB}MB\n⚡ Source: ${videoResult.source}\n\n*Note:* Open the document to play the video.`,
           edit: statusMsg.key 
         });
 
-        console.log(`✅ [VIDEO] Success: ${videoTitle} (${quality}p, ${fileSizeMB}MB)`);
+        console.log(`✅ [VIDEODOC] Success: ${videoTitle} (${actualQuality}, ${fileSizeMB}MB)`);
 
       } catch (downloadError) {
-        console.error("❌ [VIDEO] Download error:", downloadError);
+        console.error("❌ [VIDEODOC] Download error:", downloadError);
         
-        let errorMsg = `❌ Failed to download video (${quality}p)`;
+        let errorMsg = `❌ Failed to download video (${actualQuality})`;
         
         if (downloadError.message.includes('timeout')) {
           errorMsg += '\n⏱ Download timed out. Try lower quality.';
@@ -368,12 +349,12 @@ export default {
         // Clean up on error
         if (fs.existsSync(tempFile)) {
           fs.unlinkSync(tempFile);
-          console.log(`🧹 [VIDEO] Cleaned up failed: ${tempFile}`);
+          console.log(`🧹 [VIDEODOC] Cleaned up failed: ${tempFile}`);
         }
       }
 
     } catch (error) {
-      console.error("❌ [VIDEO] Fatal error:", error);
+      console.error("❌ [VIDEODOC] Fatal error:", error);
       
       await sock.sendMessage(jid, { 
         text: `❌ An error occurred\n💡 Try:\n1. Lower quality (144-480)\n2. Shorter video\n3. Direct YouTube link\n4. Try again later\n\nError: ${error.message.substring(0, 100)}`

@@ -157,7 +157,7 @@ export default {
     try {
       if (args.length === 0) {
         await sock.sendMessage(jid, { 
-          text: `🎵 *YouTube MP3 Downloader*\n\nUsage:\n• \`ytmp3 song name\`\n• \`ytmp3 https://youtube.com/...\`\n• \`ytmp3 artist - song title\`\n\n*Aliases:* ytplay, song\n\nExample: ytmp3 shape of you`
+          text: `🎵 *YouTube MP3 Downloader*\n\nUsage:\n• \`ytmp3 song name\`\n• \`ytmp3 https://youtube.com/...\`\n• \`ytmp3 artist - song title\`\n`
         }, { quoted: m });
         return;
       }

@@ -8,7 +8,7 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Reuse your exact savetube code (it's working!)
+// Reuse your exact savetube code
 const savetube = {
    api: {
       base: "https://media.savetube.me/api",
@@ -147,26 +147,73 @@ const savetube = {
    }
 };
 
+// Okatsu API for video download
+const okatsuAPI = {
+  getVideo: async (youtubeUrl) => {
+    try {
+      const apiUrl = `https://okatsu-rolezapiiz.vercel.app/downloader/ytmp4?url=${encodeURIComponent(youtubeUrl)}`;
+      const res = await axios.get(apiUrl, {
+        timeout: 30000,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          'Accept': 'application/json'
+        }
+      });
+      
+      if (res?.data?.result?.mp4) {
+        return {
+          success: true,
+          download: res.data.result.mp4,
+          title: res.data.result.title || "YouTube Video",
+          quality: "720p",
+          source: "okatsu"
+        };
+      }
+      throw new Error('Okatsu API: No mp4 link');
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  }
+};
+
 export default {
-  name: "ytplay",
-  description: "Download YouTube audio - uses same API as song command",
+  name: "ytvdoc",
+  aliases: ["video-doc", "ytvd", "docvideo"],
+  description: "Download YouTube videos and send as document (bypasses size limit)",
   async execute(sock, m, args) {
     const jid = m.key.remoteJid;
 
     try {
       if (args.length === 0) {
         await sock.sendMessage(jid, { 
-          text: `🎵 *YouTube Audio Player*\n\nUsage:\n• \`ytplay song name\`\n• \`ytplay https://youtube.com/...\`\n• \`ytplay artist - song title\`\n`
+          text: `📁 *YouTube Video as Document*\n\nUsage:\n• \`ytvdoc song name\`\n• \`ytvdoc https://youtube.com/...\`\n• \`ytvdoc 720 song name\` (specify quality)\n`
         }, { quoted: m });
         return;
       }
 
-      const searchQuery = args.join(" ");
-      console.log(`🎵 [YTPLAY] Request: ${searchQuery}`);
+      // Parse arguments for quality specification
+      let quality = '360'; // Default quality
+      let searchQuery = args.join(" ");
+      
+      // Check if first argument is a quality specification
+      const qualityPattern = /^(144|240|360|480|720|1080)$/;
+      if (qualityPattern.test(args[0])) {
+        quality = args[0];
+        searchQuery = args.slice(1).join(" ");
+        
+        if (!searchQuery) {
+          await sock.sendMessage(jid, { 
+            text: `❌ Please provide video name or URL after quality\nExample: ytvdoc 720 funny cats`
+          }, { quoted: m });
+          return;
+        }
+      }
+
+      console.log(`📁 [YTV-DOC] Request: ${searchQuery} (Quality: ${quality}p)`);
 
       // Send status message
       const statusMsg = await sock.sendMessage(jid, { 
-        text: `🔍 *Searching*: "${searchQuery}"` 
+        text: `📁 *Document Mode*\n🔍 *Searching:* "${searchQuery}"\n📊 *Quality:* ${quality}p` 
       }, { quoted: m });
 
       // Determine if input is YouTube link or search query
@@ -183,27 +230,26 @@ export default {
         const videoId = savetube.youtube(videoUrl);
         if (videoId) {
           try {
-            // Quick title fetch using oembed
             const oembed = await axios.get(`https://www.youtube.com/oembed?url=${encodeURIComponent(videoUrl)}&format=json`, {
               timeout: 5000
             });
             videoTitle = oembed.data.title;
           } catch (e) {
-            videoTitle = "YouTube Audio";
+            videoTitle = "YouTube Video";
           }
         }
       } else {
         // Search YouTube for the video
         try {
           await sock.sendMessage(jid, { 
-            text: `🔍 *Searching*: "${searchQuery}"\n📡 Looking for best match...`,
+            text: `📁 *Document Mode*\n🔍 *Searching:* "${searchQuery}"\n📊 *Quality:* ${quality}p\n📡 Looking for best match...`,
             edit: statusMsg.key 
           });
           
           const { videos } = await yts(searchQuery);
           if (!videos || videos.length === 0) {
             await sock.sendMessage(jid, { 
-              text: `❌ No songs found for "${searchQuery}"\nTry different keywords or use direct YouTube link.`,
+              text: `❌ No videos found for "${searchQuery}"\nTry different keywords or use direct YouTube link.`,
               edit: statusMsg.key 
             });
             return;
@@ -212,39 +258,95 @@ export default {
           videoUrl = videos[0].url;
           videoTitle = videos[0].title;
           
-          console.log(`🎵 [YTPLAY] Found: ${videoTitle} - ${videoUrl}`);
+          console.log(`📁 [YTV-DOC] Found: ${videoTitle} - ${videoUrl}`);
           
           await sock.sendMessage(jid, { 
-            text: `🔍 *Searching*: "${searchQuery}" ✅\n🎵 *Found:* ${videoTitle}\n⬇️ *Downloading audio...*`,
+            text: `📁 *Document Mode*\n🔍 *Searching:* "${searchQuery}" ✅\n🎬 *Found:* ${videoTitle}\n📊 *Quality:* ${quality}p\n⬇️ *Downloading video...*`,
             edit: statusMsg.key 
           });
           
         } catch (searchError) {
-          console.error("❌ [YTPLAY] Search error:", searchError);
+          console.error("❌ [YTV-DOC] Search error:", searchError);
           await sock.sendMessage(jid, { 
-            text: `❌ Search failed. Please use direct YouTube link.\nExample: ytplay https://youtube.com/watch?v=...`,
+            text: `❌ Search failed. Please use direct YouTube link.\nExample: ytvdoc https://youtube.com/watch?v=...`,
             edit: statusMsg.key 
           });
           return;
         }
       }
 
-      // Download using savetube (same API as song command)
-      let result;
+      // Download using savetube first, then fallback to Okatsu
+      let result = null;
+      let downloadSource = "savetube";
+      let actualQuality = quality;
+      
       try {
-        console.log(`🎵 [YTPLAY] Downloading via savetube: ${videoUrl}`);
-        result = await savetube.download(videoUrl, 'mp3');
+        console.log(`📁 [YTV-DOC] Trying savetube: ${videoUrl} (${quality}p)`);
+        result = await savetube.download(videoUrl, quality);
+        
+        if (!result || !result.status) {
+          throw new Error("Savetube failed");
+        }
+        
       } catch (err) {
-        console.error("❌ [YTPLAY] Savetube error:", err);
-        await sock.sendMessage(jid, { 
-          text: `❌ Download service failed\nTry again in a few minutes.`,
-          edit: statusMsg.key 
-        });
-        return;
+        console.log(`⚠️ [YTV-DOC] Savetube failed: ${err.message}`);
+        
+        // Try lower qualities first
+        const qualities = ['360', '240', '144'];
+        let foundAlternative = false;
+        
+        for (const lowerQuality of qualities) {
+          if (parseInt(lowerQuality) < parseInt(quality)) {
+            try {
+              console.log(`📁 [YTV-DOC] Trying lower quality: ${lowerQuality}p`);
+              result = await savetube.download(videoUrl, lowerQuality);
+              if (result && result.status) {
+                actualQuality = lowerQuality;
+                foundAlternative = true;
+                break;
+              }
+            } catch (e) {
+              continue;
+            }
+          }
+        }
+        
+        // If savetube completely fails, try Okatsu API
+        if (!foundAlternative) {
+          await sock.sendMessage(jid, { 
+            text: `📁 *Document Mode*\n🔍 *Searching:* "${searchQuery}" ✅\n🎬 *Found:* ${videoTitle}\n📊 *Quality:* ${quality}p\n⚠️ *Primary service failed, trying backup...*`,
+            edit: statusMsg.key 
+          });
+          
+          console.log(`📁 [YTV-DOC] Trying Okatsu API as backup`);
+          const okatsuResult = await okatsuAPI.getVideo(videoUrl);
+          
+          if (okatsuResult.success) {
+            result = {
+              status: true,
+              result: {
+                title: okatsuResult.title,
+                download: okatsuResult.download,
+                quality: okatsuResult.quality,
+                duration: "N/A"
+              }
+            };
+            downloadSource = "okatsu";
+            actualQuality = okatsuResult.quality;
+            console.log(`✅ [YTV-DOC] Got video from Okatsu API`);
+          } else {
+            console.error("❌ [YTV-DOC] All services failed");
+            await sock.sendMessage(jid, { 
+              text: `❌ All download services failed\nPlease try again in a few minutes.`,
+              edit: statusMsg.key 
+            });
+            return;
+          }
+        }
       }
 
       if (!result || !result.status || !result.result || !result.result.download) {
-        console.error("❌ [YTPLAY] Invalid result:", result);
+        console.error("❌ [YTV-DOC] Invalid result:", result);
         await sock.sendMessage(jid, { 
           text: `❌ Failed to get download link\nService might be temporarily unavailable.`,
           edit: statusMsg.key 
@@ -254,24 +356,25 @@ export default {
 
       // Update status
       await sock.sendMessage(jid, { 
-        text: `🔍 *Searching*: "${searchQuery}" ✅\n⬇️ *Downloading audio...* ✅\n🎵 *Sending audio...*`,
+        text: `📁 *Document Mode*\n🔍 *Searching:* "${searchQuery}" ✅\n⬇️ *Downloading video...* ✅\n📦 *Preparing document...* (${actualQuality}p)`,
         edit: statusMsg.key 
       });
 
-      // Download the audio file
+      // Download the video file
       const tempDir = path.join(__dirname, "../temp");
       if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
       
-      const tempFile = path.join(tempDir, `${Date.now()}_ytplay.mp3`);
-      const finalTitle = videoTitle || result.result.title;
+      const sanitizedTitle = videoTitle.replace(/[^\w\s.-]/gi, '').substring(0, 50);
+      const fileName = `${sanitizedTitle}_${actualQuality}p.mp4`;
+      const tempFile = path.join(tempDir, `${Date.now()}_${fileName}`);
       
       try {
-        // Download the audio
+        // Download the video
         const response = await axios({
           url: result.result.download,
           method: 'GET',
           responseType: 'stream',
-          timeout: 60000, // 60 second timeout
+          timeout: 180000, // 3 minute timeout for larger videos
           headers: {
             'User-Agent': 'Mozilla/5.0',
             'Referer': 'https://yt.savetube.me/'
@@ -292,13 +395,13 @@ export default {
         });
 
         // Read file into buffer
-        const audioBuffer = fs.readFileSync(tempFile);
-        const fileSizeMB = (audioBuffer.length / (1024 * 1024)).toFixed(1);
+        const videoBuffer = fs.readFileSync(tempFile);
+        const fileSizeMB = (videoBuffer.length / (1024 * 1024)).toFixed(1);
 
-        // Check file size (WhatsApp limit ~16MB)
-        if (parseFloat(fileSizeMB) > 16) {
+        // Check file size (Document limit is higher, but still reasonable)
+        if (parseFloat(fileSizeMB) > 100) {
           await sock.sendMessage(jid, { 
-            text: `❌ File too large: ${fileSizeMB}MB\nMax size: 16MB\nTry a shorter video.`,
+            text: `❌ Video too large: ${fileSizeMB}MB\nMax recommended size: 100MB\nTry lower quality (144p, 240p) or shorter video.`,
             edit: statusMsg.key 
           });
           
@@ -307,61 +410,42 @@ export default {
           return;
         }
 
-        // Get thumbnail
-        let thumbnailBuffer = null;
-        try {
-          const thumbnailResponse = await axios.get(result.result.thumbnail, {
-            responseType: 'arraybuffer',
-            timeout: 10000
-          });
-          thumbnailBuffer = Buffer.from(thumbnailResponse.data);
-        } catch (thumbError) {
-          console.log("ℹ️ [YTPLAY] Could not fetch thumbnail");
-        }
-
-        // Send as audio message
+        // Send as document
         await sock.sendMessage(jid, {
-          audio: audioBuffer,
-          mimetype: 'audio/mpeg',
-          ptt: false,
-          fileName: `${finalTitle.substring(0, 50)}.mp3`.replace(/[^\w\s.-]/gi, ''),
-          contextInfo: {
-            externalAdReply: {
-              title: finalTitle,
-              body: `🎵 YouTube Audio • ${fileSizeMB}MB`,
-              mediaType: 2,
-              thumbnail: thumbnailBuffer,
-              mediaUrl: videoUrl
-            }
-          }
+          document: videoBuffer,
+          mimetype: 'video/mp4',
+          fileName: fileName,
+          caption: `📁 *${videoTitle}*\n📊 Quality: ${actualQuality}p\n📦 Size: ${fileSizeMB}MB\n⚡ Source: ${downloadSource}\n🔗 ${videoUrl}`
         }, { quoted: m });
 
         // Clean up temp file
         if (fs.existsSync(tempFile)) {
           fs.unlinkSync(tempFile);
-          console.log(`✅ [YTPLAY] Cleaned up: ${tempFile}`);
+          console.log(`✅ [YTV-DOC] Cleaned up: ${tempFile}`);
         }
 
         // Success message
         await sock.sendMessage(jid, { 
-          text: `✅ *Audio Sent!*\n\n🎵 ${finalTitle}\n📦 ${fileSizeMB}MB\n⏱ ${result.result.duration || 'N/A'}`,
+          text: `✅ *Video Sent as Document!*\n\n📁 ${videoTitle}\n📊 ${actualQuality}p • ${fileSizeMB}MB\n⚡ Source: ${downloadSource}\n⏱ ${result.result.duration || 'N/A'}\n\n*Note:* Open the document to play the video.`,
           edit: statusMsg.key 
         });
 
-        console.log(`✅ [YTPLAY] Success: ${finalTitle} (${fileSizeMB}MB)`);
+        console.log(`✅ [YTV-DOC] Success: ${videoTitle} (${actualQuality}p, ${fileSizeMB}MB, ${downloadSource})`);
 
       } catch (downloadError) {
-        console.error("❌ [YTPLAY] Download error:", downloadError);
+        console.error("❌ [YTV-DOC] Download error:", downloadError);
         
-        let errorMsg = `❌ Failed to download audio`;
+        let errorMsg = `❌ Failed to download video`;
         
         if (downloadError.message.includes('timeout')) {
-          errorMsg += '\n⏱ Download timed out. Try again.';
+          errorMsg += '\n⏱ Download timed out. Video might be too large.';
         } else if (downloadError.message.includes('ENOTFOUND') || downloadError.message.includes('ECONNREFUSED')) {
           errorMsg += '\n🌐 Network error. Check your connection.';
         } else if (downloadError.response && downloadError.response.status === 403) {
           errorMsg += '\n🔒 Access denied. Video might be restricted.';
         }
+        
+        errorMsg += `\n\n💡 Try:\n• Lower quality (144p, 240p)\n• Shorter video`;
         
         await sock.sendMessage(jid, { 
           text: errorMsg,
@@ -371,16 +455,16 @@ export default {
         // Clean up on error
         if (fs.existsSync(tempFile)) {
           fs.unlinkSync(tempFile);
-          console.log(`🧹 [YTPLAY] Cleaned up failed: ${tempFile}`);
+          console.log(`🧹 [YTV-DOC] Cleaned up failed: ${tempFile}`);
         }
       }
 
     } catch (error) {
-      console.error("❌ [YTPLAY] Fatal error:", error);
+      console.error("❌ [YTV-DOC] Fatal error:", error);
       
       let errorText = '❌ An error occurred';
       if (error.message.includes('savetube')) {
-        errorText += '\n🎵 The audio service is currently unavailable';
+        errorText += '\n📁 The video service is currently unavailable';
         errorText += '\n💡 Try again in a few minutes';
       } else {
         errorText += `\n${error.message.substring(0, 100)}`;

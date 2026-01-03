@@ -156,7 +156,7 @@ export default {
     try {
       if (args.length === 0) {
         await sock.sendMessage(jid, { 
-          text: `🎬 *YouTube MP4 Downloader*\n\n*Usage:*\n• \`ytmp4 video name\`\n• \`ytmp4 https://youtube.com/...\`\n• \`ytmp4 720 video name\` (specify quality)\n\n*Available Qualities:*\n144p • 240p • 360p • 480p • 720p • 1080p\n\n*Examples:*\n• ytmp4 funny cats\n• ytmp4 https://youtu.be/...\n• ytmp4 720 tutorial`
+          text: `🎬 *YouTube MP4 Downloader*\n\n*Usage:*\n• \`ytmp4 video name\`\n• \`ytmp4 https://youtube.com/...\`\n• \`ytmp4 720 video name\` (specify quality)\n`
         }, { quoted: m });
         return;
       }
