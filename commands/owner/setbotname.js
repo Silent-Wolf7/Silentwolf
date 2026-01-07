@@ -9,7 +9,7 @@ const __dirname = path.dirname(__filename);
 
 export default {
     name: 'setbotname',
-    alias: ['botname', 'changebotname', 'setname'],
+    alias: ['botname','sbn','bn', 'changebotname', 'cbn','setname'],
     category: 'owner',
     description: 'Change the bot display name',
     ownerOnly: true,
@@ -30,7 +30,7 @@ export default {
             const currentName = this.getCurrentBotName();
             
             return sock.sendMessage(chatId, {
-                text: `🤖 *BOT NAME MANAGEMENT*\n\n📝 Current Bot Name: *${currentName}*\n\n💡 To change the bot name, use:\n\`${PREFIX}setbotname <new_name>\`\n\nExample: \`${PREFIX}setbotname WolfBot Pro\`\n\n⚠️ Note: This changes the name displayed in the menu, not your WhatsApp profile name.`
+                text: `🤖 *BOT NAME MANAGEMENT*\n\n📝 Current Bot Name: *${currentName}*\n\n💡 To change the bot name, use:\n\`${PREFIX}setbotname <new_name>\`\n\nExample: \`${PREFIX}setbotname WolfBot Pro\`\n`
             }, { quoted: msg });
         }
         
@@ -96,14 +96,14 @@ export default {
             process.env.BOT_NAME = newBotName;
             
             // Success message
-            let successMsg = `✅ *Bot Name Updated Successfully!*\n\n`;
-            successMsg += `✨ New Name: *${newBotName}*\n\n`;
-            successMsg += `✅ Saved to ${savedCount} location(s)\n\n`;
-            successMsg += `🔧 The new name will appear in:\n`;
-            successMsg += `├─ Menu header: ✅\n`;
-            successMsg += `├─ Command responses: ✅\n`;
-            successMsg += `└─ All bot interactions: ✅\n\n`;
-            successMsg += `💡 Use \`${PREFIX}menu\` to see the updated name immediately.`;
+            let successMsg = `✅ *Bot Name Updated Successfully!*\n`;
+            successMsg += `✨ New Name: *${newBotName}*\n`;
+            // successMsg += `✅ Saved to ${savedCount} location(s)\n\n`;
+            // successMsg += `🔧 The new name will appear in:\n`;
+            // successMsg += `├─ Menu header: ✅\n`;
+            // successMsg += `├─ Command responses: ✅\n`;
+            // successMsg += `└─ All bot interactions: ✅\n\n`;
+            // successMsg += `💡 Use \`${PREFIX}menu\` to see the updated name immediately.`;
             
             await sock.sendMessage(chatId, {
                 text: successMsg

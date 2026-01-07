@@ -1536,765 +1536,6 @@ case 3: {
 
 
 
-case 5: {
-  // 📝 Full info + commands (with individual toggles)
-  let finalText = "";
-  
-  // ========== ADD "READ MORE" HELPER FUNCTION ==========
-  const createReadMoreEffect = (text1, text2) => {
-    /**
-     * Creates WhatsApp's "Read more" effect using invisible characters
-     * @param {string} text1 - First part (visible before "Read more")
-     * @param {string} text2 - Second part (hidden after "Read more")
-     * @returns {string} Formatted text with "Read more" effect
-     */
-    
-    // WhatsApp needs MORE invisible characters to trigger "Read more"
-    // Use 500+ characters for better reliability
-    const invisibleChars = [
-      '\u200E',    // LEFT-TO-RIGHT MARK
-      '\u200F',    // RIGHT-TO-LEFT MARK
-      '\u200B',    // ZERO WIDTH SPACE
-      '\u200C',    // ZERO WIDTH NON-JOINER
-      '\u200D',    // ZERO WIDTH JOINER
-      '\u2060',    // WORD JOINER
-      '\uFEFF',    // ZERO WIDTH NO-BREAK SPACE
-    ];
-    
-    // Create a LONG string of invisible characters (500-600 chars)
-    // WhatsApp needs enough to break the line detection
-    const invisibleString = Array.from({ length: 550 }, 
-      (_, i) => invisibleChars[i % invisibleChars.length]
-    ).join('');
-    
-    // Add a newline after invisible characters for cleaner break
-    return `${text1}${invisibleString}\n${text2}`;
-  };
-  // ========== END OF HELPER FUNCTION ==========
-  
-  // Add these helper functions at the start of case 5 (same as case 7)
-  const getBotMode = () => {
-    try {
-      const possiblePaths = [
-        './bot_mode.json',
-        path.join(__dirname, 'bot_mode.json'),
-        path.join(__dirname, '../bot_mode.json'),
-        path.join(__dirname, '../../bot_mode.json'),
-        path.join(__dirname, '../../../bot_mode.json'),
-        path.join(__dirname, '../commands/owner/bot_mode.json'),
-      ];
-      
-      for (const modePath of possiblePaths) {
-        if (fs.existsSync(modePath)) {
-          try {
-            const modeData = JSON.parse(fs.readFileSync(modePath, 'utf8'));
-            
-            if (modeData.mode) {
-              let displayMode;
-              switch(modeData.mode.toLowerCase()) {
-                case 'public':
-                  displayMode = '🌍 Public';
-                  break;
-                case 'silent':
-                  displayMode = '🔇 Silent';
-                  break;
-                case 'private':
-                  displayMode = '🔒 Private';
-                  break;
-                case 'group-only':
-                  displayMode = '👥 Group Only';
-                  break;
-                case 'maintenance':
-                  displayMode = '🛠️ Maintenance';
-                  break;
-                default:
-                  displayMode = `⚙️ ${modeData.mode.charAt(0).toUpperCase() + modeData.mode.slice(1)}`;
-              }
-              return displayMode;
-            }
-          } catch (parseError) {}
-        }
-      }
-      
-      // Fallback to global variables
-      if (global.BOT_MODE) {
-        return global.BOT_MODE === 'silent' ? '🔇 Silent' : '🌍 Public';
-      }
-      if (global.mode) {
-        return global.mode === 'silent' ? '🔇 Silent' : '🌍 Public';
-      }
-      if (process.env.BOT_MODE) {
-        return process.env.BOT_MODE === 'silent' ? '🔇 Silent' : '🌍 Public';
-      }
-      
-    } catch (error) {}
-    
-    return '🌍 Public';
-  };
-  
-  const getBotName = () => {
-    try {
-      const possiblePaths = [
-        './bot_settings.json',
-        path.join(__dirname, 'bot_settings.json'),
-        path.join(__dirname, '../bot_settings.json'),
-        path.join(__dirname, '../../bot_settings.json'),
-        path.join(__dirname, '../../../bot_settings.json'),
-        path.join(__dirname, '../commands/owner/bot_settings.json'),
-      ];
-      
-      for (const settingsPath of possiblePaths) {
-        if (fs.existsSync(settingsPath)) {
-          try {
-            const settingsData = fs.readFileSync(settingsPath, 'utf8');
-            const settings = JSON.parse(settingsData);
-            
-            if (settings.botName && settings.botName.trim() !== '') {
-              return settings.botName.trim();
-            }
-          } catch (parseError) {}
-        }
-      }
-      
-      if (global.BOT_NAME) {
-        return global.BOT_NAME;
-      }
-      
-      if (process.env.BOT_NAME) {
-        return process.env.BOT_NAME;
-      }
-      
-    } catch (error) {}
-    
-    return 'WOLFBOT';
-  };
-  
-  const getOwnerName = () => {
-    try {
-      const botSettingsPaths = [
-        './bot_settings.json',
-        path.join(__dirname, 'bot_settings.json'),
-        path.join(__dirname, '../bot_settings.json'),
-        path.join(__dirname, '../../bot_settings.json'),
-      ];
-      
-      for (const settingsPath of botSettingsPaths) {
-        if (fs.existsSync(settingsPath)) {
-          try {
-            const settingsData = fs.readFileSync(settingsPath, 'utf8');
-            const settings = JSON.parse(settingsData);
-            
-            if (settings.ownerName && settings.ownerName.trim() !== '') {
-              return settings.ownerName.trim();
-            }
-          } catch (parseError) {}
-        }
-      }
-      
-      const ownerPath = path.join(__dirname, 'owner.json');
-      if (fs.existsSync(ownerPath)) {
-        const ownerData = fs.readFileSync(ownerPath, 'utf8');
-        const ownerInfo = JSON.parse(ownerData);
-        
-        if (ownerInfo.owner && ownerInfo.owner.trim() !== '') {
-          return ownerInfo.owner.trim();
-        } else if (ownerInfo.number && ownerInfo.number.trim() !== '') {
-          return ownerInfo.number.trim();
-        } else if (ownerInfo.phone && ownerInfo.phone.trim() !== '') {
-          return ownerInfo.phone.trim();
-        } else if (ownerInfo.contact && ownerInfo.contact.trim() !== '') {
-          return ownerInfo.contact.trim();
-        } else if (Array.isArray(ownerInfo) && ownerInfo.length > 0) {
-          const owner = typeof ownerInfo[0] === 'string' ? ownerInfo[0] : "Unknown";
-          return owner;
-        }
-      }
-      
-      if (global.OWNER_NAME) {
-        return global.OWNER_NAME;
-      }
-      if (global.owner) {
-        return global.owner;
-      }
-      if (process.env.OWNER_NUMBER) {
-        return process.env.OWNER_NUMBER;
-      }
-      
-    } catch (error) {}
-    
-    return 'Unknown';
-  };
-  
-  const getBotPrefix = () => {
-    try {
-      const botSettingsPaths = [
-        './bot_settings.json',
-        path.join(__dirname, 'bot_settings.json'),
-        path.join(__dirname, '../bot_settings.json'),
-        path.join(__dirname, '../../bot_settings.json'),
-      ];
-      
-      for (const settingsPath of botSettingsPaths) {
-        if (fs.existsSync(settingsPath)) {
-          try {
-            const settingsData = fs.readFileSync(settingsPath, 'utf8');
-            const settings = JSON.parse(settingsData);
-            
-            if (settings.prefix && settings.prefix.trim() !== '') {
-              return settings.prefix.trim();
-            }
-          } catch (parseError) {}
-        }
-      }
-      
-      if (global.prefix) {
-        return global.prefix;
-      }
-      
-      if (process.env.PREFIX) {
-        return process.env.PREFIX;
-      }
-      
-    } catch (error) {}
-    
-    return '.';
-  };
-  
-  const getBotVersion = () => {
-    try {
-      const ownerPath = path.join(__dirname, 'owner.json');
-      if (fs.existsSync(ownerPath)) {
-        const ownerData = fs.readFileSync(ownerPath, 'utf8');
-        const ownerInfo = JSON.parse(ownerData);
-        
-        if (ownerInfo.version && ownerInfo.version.trim() !== '') {
-          return ownerInfo.version.trim();
-        }
-      }
-      
-      const botSettingsPaths = [
-        './bot_settings.json',
-        path.join(__dirname, 'bot_settings.json'),
-        path.join(__dirname, '../bot_settings.json'),
-      ];
-      
-      for (const settingsPath of botSettingsPaths) {
-        if (fs.existsSync(settingsPath)) {
-          try {
-            const settingsData = fs.readFileSync(settingsPath, 'utf8');
-            const settings = JSON.parse(settingsData);
-            
-            if (settings.version && settings.version.trim() !== '') {
-              return settings.version.trim();
-            }
-          } catch (parseError) {}
-        }
-      }
-      
-      if (global.VERSION) {
-        return global.VERSION;
-      }
-      
-      if (global.version) {
-        return global.version;
-      }
-      
-      if (process.env.VERSION) {
-        return process.env.VERSION;
-      }
-      
-    } catch (error) {}
-    
-    return 'v1.0.0';
-  };
-  
-  const getDeploymentPlatform = () => {
-    // Detect deployment platform
-    if (process.env.REPL_ID || process.env.REPLIT_DB_URL) {
-      return {
-        name: 'Replit',
-        status: 'Active',
-        icon: '🌀'
-      };
-    } else if (process.env.HEROKU_APP_NAME) {
-      return {
-        name: 'Heroku',
-        status: 'Active',
-        icon: '🦸'
-      };
-    } else if (process.env.RENDER_SERVICE_ID) {
-      return {
-        name: 'Render',
-        status: 'Active',
-        icon: '⚡'
-      };
-    } else if (process.env.RAILWAY_ENVIRONMENT) {
-      return {
-        name: 'Railway',
-        status: 'Active',
-        icon: '🚂'
-      };
-    } else if (process.env.VERCEL) {
-      return {
-        name: 'Vercel',
-        status: 'Active',
-        icon: '▲'
-      };
-    } else if (process.env.GLITCH_PROJECT_REMIX) {
-      return {
-        name: 'Glitch',
-        status: 'Active',
-        icon: '🎏'
-      };
-    } else if (process.env.KOYEB) {
-      return {
-        name: 'Koyeb',
-        status: 'Active',
-        icon: '☁️'
-      };
-    } else if (process.env.CYCLIC_URL) {
-      return {
-        name: 'Cyclic',
-        status: 'Active',
-        icon: '🔄'
-      };
-    } else if (process.env.PANEL) {
-      return {
-        name: 'PteroPanel',
-        status: 'Active',
-        icon: '🖥️'
-      };
-    } else if (process.env.SSH_CONNECTION || process.env.SSH_CLIENT) {
-      return {
-        name: 'VPS/SSH',
-        status: 'Active',
-        icon: '🖥️'
-      };
-    } else if (process.platform === 'win32') {
-      return {
-        name: 'Windows PC',
-        status: 'Active',
-        icon: '💻'
-      };
-    } else if (process.platform === 'linux') {
-      return {
-        name: 'Linux VPS',
-        status: 'Active',
-        icon: '🐧'
-      };
-    } else if (process.platform === 'darwin') {
-      return {
-        name: 'MacOS',
-        status: 'Active',
-        icon: '🍎'
-      };
-    } else {
-      return {
-        name: 'Local Machine',
-        status: 'Active',
-        icon: '🏠'
-      };
-    }
-  };
-  
-  // Get current time and date
-  const now = new Date();
-  const currentTime = now.toLocaleTimeString('en-US', { 
-    hour12: true, 
-    hour: '2-digit', 
-    minute: '2-digit',
-    second: '2-digit'
-  });
-  
-  const currentDate = now.toLocaleDateString('en-US', {
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric'
-  });
-  
-  // Load bot information using helper functions
-  const botName = getBotName();
-  const ownerName = getOwnerName();
-  const botPrefix = getBotPrefix();
-  const botVersion = getBotVersion();
-  const botMode = getBotMode();
-  const deploymentPlatform = getDeploymentPlatform();
-  
-  // Add bot name header before the info section
-  let infoSection = `> *🐺 ${botName} 🐺*\n`;
-  
-  // Add info section only if any field is enabled
-  const fieldsStatus = getAllFieldsStatus(style);
-  
-  // ========== FIX: Add safety check for fieldsStatus ==========
-  let hasInfoFields = false;
-  if (fieldsStatus && typeof fieldsStatus === 'object') {
-    hasInfoFields = Object.values(fieldsStatus).some(val => val);
-  } else {
-    // If getAllFieldsStatus doesn't exist or returns invalid, show all info
-    hasInfoFields = true;
-  }
-  
-  if (hasInfoFields) {
-    const start = performance.now();
-    const uptime = process.uptime();
-    const h = Math.floor(uptime / 3600);
-    const mnt = Math.floor((uptime % 3600) / 60);
-    const s = Math.floor(uptime % 60);
-    const uptimeStr = `${h}h ${mnt}m ${s}s`;
-    const speed = (performance.now() - start).toFixed(2);
-    const usedMem = (process.memoryUsage().rss / 1024 / 1024).toFixed(1);
-    const totalMem = (os.totalmem() / 1024 / 1024 / 1024).toFixed(0);
-    
-    // SAFE CALCULATION: Prevent negative or invalid percentages
-    const memPercentNum = ((usedMem / (totalMem * 1024)) * 100);
-    const memPercent = Math.min(Math.max(parseFloat(memPercentNum.toFixed(0)), 0), 100);
-    
-    // SAFE BAR CALCULATION: Prevent negative repeat values
-    const filledBars = Math.max(Math.floor(memPercent / 10), 0);
-    const emptyBars = Math.max(10 - filledBars, 0);
-    const memBar = "█".repeat(filledBars) + "░".repeat(emptyBars);
-    
-    // Calculate command speed in milliseconds
-    const commandSpeed = `${speed}ms`;
-    
-    const infoLines = [];
-    
-    // ========== FIX: Check each field individually ==========
-    if ((fieldsStatus && fieldsStatus.time) || (!fieldsStatus)) infoLines.push(`> ┃ Date: ${currentDate}`);
-    if ((fieldsStatus && fieldsStatus.time) || (!fieldsStatus)) infoLines.push(`> ┃ Time: ${currentTime}`);
-    if ((fieldsStatus && fieldsStatus.user) || (!fieldsStatus)) infoLines.push(`> ┃ User: ${m.pushName || "Anonymous"}`);
-    if ((fieldsStatus && fieldsStatus.owner) || (!fieldsStatus)) infoLines.push(`> ┃ Owner: ${ownerName}`);
-    if ((fieldsStatus && fieldsStatus.mode) || (!fieldsStatus)) infoLines.push(`> ┃ Mode: ${botMode}`);
-    if ((fieldsStatus && fieldsStatus.prefix) || (!fieldsStatus)) infoLines.push(`> ┃ Prefix: [ ${botPrefix} ]`);
-    if ((fieldsStatus && fieldsStatus.version) || (!fieldsStatus)) infoLines.push(`> ┃ Version: ${botVersion}`);
-    if ((fieldsStatus && fieldsStatus.host) || (!fieldsStatus)) {
-      infoLines.push(`> ┃ Panel: ${deploymentPlatform.name}`);
-      infoLines.push(`> ┃ Status: ${deploymentPlatform.status}`);
-    }
-    if ((fieldsStatus && fieldsStatus.speed) || (!fieldsStatus)) {
-      infoLines.push(`> ┃ Speed: ${commandSpeed}`);
-    }
-    if ((fieldsStatus && fieldsStatus.uptime) || (!fieldsStatus)) infoLines.push(`> ┃ Uptime: ${uptimeStr}`);
-    if ((fieldsStatus && fieldsStatus.usage) || (!fieldsStatus)) infoLines.push(`> ┃ Usage: ${usedMem} MB of ${totalMem} GB`);
-    if ((fieldsStatus && fieldsStatus.ram) || (!fieldsStatus)) infoLines.push(`> ┃ RAM: ${memBar} ${memPercent}%`);
-
-    if (infoLines.length > 0) {
-      const infoText = `> ┌────────────────\n${infoLines.join('\n')}\n> └────────────────\n`;
-      infoSection += infoText;
-    }
-  } else {
-    // If no info fields are enabled, still show basic header
-    infoSection += `> *No additional information is enabled.*\n> *Use .togglemenuinfo to customize*\n`;
-  }
-
-  const commandsText = `> ┌────────────────
-> │ 🏠 *GROUP MANAGEMENT* 🏠 
-> ├────────────────
-> │ 🛡️ *ADMIN & MODERATION* 🛡️ 
-> ├────────────────
-> │ • add                     
-> │ • promote                 
-> │ • demote                  
-> │ • kick                    
-> │ • kickall                 
-> │ • ban                     
-> │ • unban                   
-> │ • banlist                 
-> │ • clearbanlist            
-> │ • warn                    
-> │ • resetwarn               
-> │ • setwarn                 
-> │ • mute                    
-> │ • unmute                  
-> │ • gctime                  
-> │ • antileave               
-> │ • antilink                
-> │ • welcome                 
-> ├────────────────
-> │ 🚫 *AUTO-MODERATION* 🚫   
-> ├────────────────
-> │ • antisticker             
-> │ • antiviewonce  
-> │ • antilink  
-> │ • antiimage
-> │ • antivideo
-> │ • antiaudio
-> │ • antimention
-> │ • antistatusmention  
-> │ • antigrouplink
-> ├────────────────
-> │ 📊 *GROUP INFO & TOOLS* 📊 
-> ├────────────────
-> │ • groupinfo               
-> │ • tagadmin                
-> │ • tagall                  
-> │ • hidetag                 
-> │ • link                    
-> │ • invite                  
-> │ • revoke                  
-> │ • setdesc                 
-> │ • fangtrace               
-> │ • getgpp                  
-> └────────────────
-
-> ┌────────────────
-> │ 🎨 *MENU COMMANDS* 🎨
-> ├────────────────
-> │ • togglemenuinfo
-> │ • setmenuimage
-> │ • resetmenuinfo
-> │ • menustyle
-> └────────────────
-
-> ┌────────────────
-> │ 👑 *OWNER CONTROLS* 👑    
-> ├────────────────
-> │ ⚡ *CORE MANAGEMENT* ⚡    
-> ├────────────────
-> │ • setbotname              
-> │ • setowner                
-> │ • setprefix               
-> │ • iamowner                
-> │ • about                   
-> │ • block                   
-> │ • unblock                 
-> │ • blockdetect             
-> │ • silent                  
-> │ • anticall                
-> │ • mode                    
-> │ • online                  
-> │ • setpp                   
-> │ • repo                    
-> ├────────────────
-> │ 🔄 *SYSTEM & MAINTENANCE* 🛠️ 
-> ├────────────────
-> │ • restart                 
-> │ • workingreload           
-> │ • reloadenv               
-> │ • getsettings             
-> │ • setsetting              
-> │ • test                    
-> │ • disk                    
-> │ • hostip                  
-> │ • findcommands            
-> └────────────────
-
-> ┌────────────────
-> │ ⚙️ *AUTOMATION* ⚙️
-> ├────────────────
-> │ • autoread                
-> │ • autotyping              
-> │ • autorecording           
-> │ • autoreact               
-> │ • autoreactstatus         
-> │ • autobio                 
-> │ • autorec                 
-> └────────────────
-
-> ┌────────────────
-> │ ✨ *GENERAL UTILITIES* ✨
-> ├────────────────
-> │ 🔍 *INFO & SEARCH* 🔎
-> ├────────────────
-> │ • alive
-> │ • ping
-> │ • ping2
-> │ • time
-> │ • connection
-> │ • define
-> │ • news
-> │ • covid
-> │ • iplookup
-> │ • getip
-> │ • getpp
-> │ • getgpp
-> │ • prefixinfo
-> ├───────────────
-> │ 🔗 *CONVERSION & MEDIA* 📁
-> ├───────────────
-> │ • shorturl
-> │ • qrencode
-> │ • take
-> │ • imgbb
-> │ • tiktok
-> │ • save
-> ├───────────────
-> │ 📝 *PERSONAL TOOLS* 📅
-> ├───────────────
-> │ • pair
-> │ • resetwarn
-> │ • setwarn
-> └────────────────
-
-> ┌────────────────
-> │ 🎵 *MUSIC & MEDIA* 🎶
-> ├────────────────
-> │ • play                    
-> │ • song                    
-> │ • lyrics                  
-> │ • spotify                 
-> │ • video                   
-> │ • video2                  
-> │ • bassboost               
-> │ • trebleboost             
-> └────────────────
-
-> ┌───────────────
-> │ 🤖 *MEDIA & AI COMMANDS* 🧠 
-> ├───────────────
-> │ ⬇️ *MEDIA DOWNLOADS* 📥     
-> ├───────────────
-> │ • youtube                 
-> │ • tiktok                 
-> │ • instagram               
-> │ • facebook                
-> │ • snapchat                
-> │ • apk                     
-> ├───────────────
-> │ 🎨 *AI GENERATION* 💡    
-> ├───────────────
-> │ • gpt                     
-> │ • gemini                  
-> │ • deepseek                
-> │ • deepseek+               
-> │ • analyze                 
-> │ • suno                    
-> │ • wolfbot                 
-> │ • videogen                
-> └───────────────
-
-> ┌───────────────
-> │ 🖼️ *IMAGE TOOLS* 🖼️
-> ├───────────────
-> │ • image                   
-> │ • imagegenerate           
-> │ • anime                   
-> │ • art                     
-> │ • real                    
-> └───────────────
-
-> ┌───────────────
-> │ 🛡️ *SECURITY & HACKING* 🔒 
-> ├───────────────
-> │ 🌐 *NETWORK & INFO* 📡   
-> ├───────────────
-> │ • ipinfo                  
-> │ • shodan                  
-> │ • iplookup                
-> │ • getip                   
-> └───────────────
-
-> ┌────────────────
-> │ 🎨 *LOGO DESIGN STUDIO* 🎨
-> ├────────────────
-> │ 🌟 *PREMIUM METALS* 🌟    
-> ├────────────────
-> │ • goldlogo                
-> │ • silverlogo              
-> │ • platinumlogo            
-> │ • chromelogo              
-> │ • diamondlogo             
-> │ • bronzelogo              
-> │ • steelogo                
-> │ • copperlogo              
-> │ • titaniumlogo            
-> ├────────────────
-> │ 🔥 *ELEMENTAL EFFECTS* 🔥  
-> ├────────────────
-> │ • firelogo                
-> │ • icelogo                 
-> │ • iceglowlogo             
-> │ • lightninglogo           
-> │ • aqualogo                
-> │ • rainbowlogo             
-> │ • sunlogo                 
-> │ • moonlogo                
-> ├────────────────
-> │ 🎭 *MYTHICAL & MAGICAL* 🧙  
-> ├────────────────
-> │ • dragonlogo              
-> │ • phoenixlogo             
-> │ • wizardlogo              
-> │ • crystallogo             
-> │ • darkmagiclogo           
-> ├────────────────
-> │ 🌌 *DARK & GOTHIC* 🌑     
-> ├────────────────
-> │ • shadowlogo              
-> │ • smokelogo               
-> │ • bloodlogo               
-> ├────────────────
-> │ 💫 *GLOW & NEON EFFECTS* 🌈  
-> ├────────────────
-> │ • neonlogo                
-> │ • glowlogo                
-> ├────────────────
-> │ 🤖 *TECH & FUTURISTIC* 🚀  
-> ├────────────────
-> │ • matrixlogo              
-> └────────────────
-
-> ┌────────────────
-> │ 🐙 *GITHUB COMMANDS* 🐙
-> ├────────────────
-> │ • gitclone
-> │ • gitinfo
-> │ • repo
-> │ • commits
-> │ • stars
-> │ • watchers
-> │ • release
-> └────────────────
-
-> ┌────────────────
-> │ 🌸 *ANIME COMMANDS* 🌸
-> ├────────────────
-> │ • awoo
-> │ • bj
-> │ • bully
-> │ • cringe
-> │ • cry
-> │ • cuddle
-> │ • dance
-> │ • glomp
-> │ • highfive
-> │ • kill
-> │ • kiss
-> │ • lick
-> │ • megumin
-> │ • neko
-> │ • pat
-> │ • shinobu
-> │ • trap
-> │ • trap2
-> │ • waifu
-> │ • wink
-> │ • yeet
-> └────────────────
-
-> 🐺*POWERED BY WOLF TECH*🐺
-`;
-
-  // ========== APPLY "READ MORE" EFFECT ==========
-  // Combine info section (visible) and commands (hidden) with "Read more"
-  finalText = createReadMoreEffect(infoSection, commandsText);
-  // ========== END "READ MORE" EFFECT ==========
-
-  await sock.sendMessage(jid, { text: finalText }, { quoted: m });
-  console.log(`✅ Text menu sent with "Read more" effect`);
-  break;
-}
-
-
-
-
-
-
-
-
-
 // case 5: {
 //   // 📝 Full info + commands (with individual toggles)
 //   let finalText = "";
@@ -2721,23 +1962,23 @@ case 5: {
 //     const infoLines = [];
     
 //     // ========== FIX: Check each field individually ==========
-//     if ((fieldsStatus && fieldsStatus.time) || (!fieldsStatus)) infoLines.push(`> ┃ ᴰᵃᵗᵉ: ${currentDate}`);
-//     if ((fieldsStatus && fieldsStatus.time) || (!fieldsStatus)) infoLines.push(`> ┃ ᵀⁱᵐᵉ: ${currentTime}`);
-//     if ((fieldsStatus && fieldsStatus.user) || (!fieldsStatus)) infoLines.push(`> ┃ ᵁˢᵉʳ: ${m.pushName || "Anonymous"}`);
-//     if ((fieldsStatus && fieldsStatus.owner) || (!fieldsStatus)) infoLines.push(`> ┃ ᵒʷⁿᵉʳ: ${ownerName}`);
-//     if ((fieldsStatus && fieldsStatus.mode) || (!fieldsStatus)) infoLines.push(`> ┃ ᴹᵒᵈᵉ: ${botMode}`);
-//     if ((fieldsStatus && fieldsStatus.prefix) || (!fieldsStatus)) infoLines.push(`> ┃ ᴾʳᵉᶠⁱˣ : [ ${botPrefix} ]`);
-//     if ((fieldsStatus && fieldsStatus.version) || (!fieldsStatus)) infoLines.push(`> ┃ ⱽᵉʳˢⁱᵒⁿ:: ${botVersion}`);
+//     if ((fieldsStatus && fieldsStatus.time) || (!fieldsStatus)) infoLines.push(`> ┃ Date: ${currentDate}`);
+//     if ((fieldsStatus && fieldsStatus.time) || (!fieldsStatus)) infoLines.push(`> ┃ Time: ${currentTime}`);
+//     if ((fieldsStatus && fieldsStatus.user) || (!fieldsStatus)) infoLines.push(`> ┃ User: ${m.pushName || "Anonymous"}`);
+//     if ((fieldsStatus && fieldsStatus.owner) || (!fieldsStatus)) infoLines.push(`> ┃ Owner: ${ownerName}`);
+//     if ((fieldsStatus && fieldsStatus.mode) || (!fieldsStatus)) infoLines.push(`> ┃ Mode: ${botMode}`);
+//     if ((fieldsStatus && fieldsStatus.prefix) || (!fieldsStatus)) infoLines.push(`> ┃ Prefix: [ ${botPrefix} ]`);
+//     if ((fieldsStatus && fieldsStatus.version) || (!fieldsStatus)) infoLines.push(`> ┃ Version: ${botVersion}`);
 //     if ((fieldsStatus && fieldsStatus.host) || (!fieldsStatus)) {
-//       infoLines.push(`> ┃ ᴾᵃⁿᵉˡ: ${deploymentPlatform.name}`);
-//       infoLines.push(`> ┃ ˢᵗᵃᵗᵘˢ: ${deploymentPlatform.status}`);
+//       infoLines.push(`> ┃ Panel: ${deploymentPlatform.name}`);
+//       infoLines.push(`> ┃ Status: ${deploymentPlatform.status}`);
 //     }
 //     if ((fieldsStatus && fieldsStatus.speed) || (!fieldsStatus)) {
-//       infoLines.push(`> ┃ ˢᵖᵉᵉᵈ: ${commandSpeed}`);
+//       infoLines.push(`> ┃ Speed: ${commandSpeed}`);
 //     }
-//     if ((fieldsStatus && fieldsStatus.uptime) || (!fieldsStatus)) infoLines.push(`> ┃ ᵁᵖᵗⁱᵐᵉ: ${uptimeStr}`);
-//     if ((fieldsStatus && fieldsStatus.usage) || (!fieldsStatus)) infoLines.push(`> ┃ ᵁˢᵃᵍᵉ: ${usedMem} MB of ${totalMem} GB`);
-//     if ((fieldsStatus && fieldsStatus.ram) || (!fieldsStatus)) infoLines.push(`> ┃ ᴿᴬᴹ: ${memBar} ${memPercent}%`);
+//     if ((fieldsStatus && fieldsStatus.uptime) || (!fieldsStatus)) infoLines.push(`> ┃ Uptime: ${uptimeStr}`);
+//     if ((fieldsStatus && fieldsStatus.usage) || (!fieldsStatus)) infoLines.push(`> ┃ Usage: ${usedMem} MB of ${totalMem} GB`);
+//     if ((fieldsStatus && fieldsStatus.ram) || (!fieldsStatus)) infoLines.push(`> ┃ RAM: ${memBar} ${memPercent}%`);
 
 //     if (infoLines.length > 0) {
 //       const infoText = `> ┌────────────────\n${infoLines.join('\n')}\n> └────────────────\n`;
@@ -2749,291 +1990,291 @@ case 5: {
 //   }
 
 //   const commandsText = `> ┌────────────────
-// > │ 🏠 ɢʀᴏᴜᴘ ᴍᴀɴᴀɢᴇᴍᴇɴᴛ 🏠 
+// > │ 🏠 *GROUP MANAGEMENT* 🏠 
 // > ├────────────────
-// > │ 🛡️ ᴀᴅᴍɪɴ & ᴍᴏᴅᴇʀᴀᴛɪᴏɴ 🛡️ 
+// > │ 🛡️ *ADMIN & MODERATION* 🛡️ 
 // > ├────────────────
-// > │ • ᵃᵈᵈ                     
-// > │ • ᵖʳᵒᵐᵒᵗᵉ                 
-// > │ • ᵈᵉᵐᵒᵗᵉ                  
-// > │ • ᵏⁱᶜᵏ                    
-// > │ • ᵏⁱᶜᵏᵃˡˡ                 
-// > │ • ᵇᵃⁿ                     
-// > │ • ᵘⁿᵇᵃⁿ                   
-// > │ • ᵇᵃⁿˡⁱˢᵗ                 
-// > │ • ᶜˡᵉᵃʳᵇᵃⁿˡⁱˢᵗ            
-// > │ • ʷᵃʳⁿ                    
-// > │ • ʳᵉˢᵗʷᵃʳⁿ               
-// > │ • ˢᵉᵗʷᵃʳⁿ                 
-// > │ • ᵐᵘᵗᵉ                    
-// > │ • ᵘⁿᴍᵘᵗᵉ                  
-// > │ • ᵍᶜᵗⁱᵐᵉ                  
-// > │ • ᵃⁿᵗⁱˡᵉᵃᵛᵉ               
-// > │ • ᵃⁿᵗⁱˡⁱⁿᵏ                
-// > │ • ʷᵉˡᶜᵒᴍᵉ                 
+// > │ • add                     
+// > │ • promote                 
+// > │ • demote                  
+// > │ • kick                    
+// > │ • kickall                 
+// > │ • ban                     
+// > │ • unban                   
+// > │ • banlist                 
+// > │ • clearbanlist            
+// > │ • warn                    
+// > │ • resetwarn               
+// > │ • setwarn                 
+// > │ • mute                    
+// > │ • unmute                  
+// > │ • gctime                  
+// > │ • antileave               
+// > │ • antilink                
+// > │ • welcome                 
 // > ├────────────────
-// > │ 🚫 ᴀᴜᴛᴏ-ᴍᴏᴅᴇʀᴀᴛɪᴏɴ 🚫   
+// > │ 🚫 *AUTO-MODERATION* 🚫   
 // > ├────────────────
-// > │ • ᵃⁿᵗⁱˢᵗⁱᶜᵏᵉʳ             
-// > │ • ᵃⁿᵗⁱᵛⁱᵉʷᵒⁿᶜᵉ  
-// > │ • ᵃⁿᵗⁱˡⁱⁿᵏ  
-// > │ • ᵃⁿᵗⁱⁱᴍᵃᵍᵉ
-// > │ • ᵃⁿᵗⁱᵛⁱᵈᵉᵒ
-// > │ • ᵃⁿᵗⁱᵃᵘᵈⁱᵒ
-// > │ • ᵃⁿᵗⁱᴍᵉⁿᵗⁱᵒⁿ
-// > │ • ᵃⁿᵗⁱˢᵗᴀᵗᵘˢᴍᵉⁿᵗⁱᵒⁿ  
-// > │ • ᵃⁿᵗⁱɢʳᵒᵘᵖˡⁱⁿᵏ
+// > │ • antisticker             
+// > │ • antiviewonce  
+// > │ • antilink  
+// > │ • antiimage
+// > │ • antivideo
+// > │ • antiaudio
+// > │ • antimention
+// > │ • antistatusmention  
+// > │ • antigrouplink
 // > ├────────────────
-// > │ 📊 ɢʀᴏᴜᴘ ɪɴꜰᴏ & ᴛᴏᴏʟs 📊 
+// > │ 📊 *GROUP INFO & TOOLS* 📊 
 // > ├────────────────
-// > │ • ᵍʳᵒᵘᵖⁱⁿᶠᵒ               
-// > │ • ᵗᵃᵍᵃᵈᴍⁱⁿ                
-// > │ • ᵗᵃᵍᵃʟʟ                  
-// > │ • ʰⁱᵈᵉᵗᵃᵍ                 
-// > │ • ˡⁱⁿᵏ                    
-// > │ • ⁱⁿᵛⁱᵗᵉ                  
-// > │ • ʳᵉᵛᵒᴋᵉ                  
-// > │ • ˢᵉᵗᴅᵉˢᶜ                 
-// > │ • ᶠᵃⁿᵍᵗʳᵃᶜᵉ               
-// > │ • ᵍᵉᵗᵍᵖᵖ                  
+// > │ • groupinfo               
+// > │ • tagadmin                
+// > │ • tagall                  
+// > │ • hidetag                 
+// > │ • link                    
+// > │ • invite                  
+// > │ • revoke                  
+// > │ • setdesc                 
+// > │ • fangtrace               
+// > │ • getgpp                  
 // > └────────────────
-// > ˢⁱˡᵉⁿᵗ ᵂᵒˡᶠ
+
 // > ┌────────────────
-// > │ 🎨 ᴍᴇɴᴜ ᴄᴏᴍᴍᴀɴᴅs 🎨
+// > │ 🎨 *MENU COMMANDS* 🎨
 // > ├────────────────
-// > │ • ᵗᵒᵍᵍˡᵉᴍᵉⁿᵘⁱⁿᶠᵒ
-// > │ • ˢᵉᵗᵐᵉⁿᵘⁱᴍᵃᵍᵉ
-// > │ • ʳᵉˢᵉᵗᵐᵉⁿᵘⁱⁿᶠᵒ
-// > │ • ᵐᵉⁿᵘˢᵗʸˡᵉ
+// > │ • togglemenuinfo
+// > │ • setmenuimage
+// > │ • resetmenuinfo
+// > │ • menustyle
 // > └────────────────
-// > ˢⁱˡᵉⁿᵗ ᵂᵒˡᶠ
+
 // > ┌────────────────
-// > │ 👑 ᴏᴡɴᴇʀ ᴄᴏɴᴛʀᴏʟs 👑    
+// > │ 👑 *OWNER CONTROLS* 👑    
 // > ├────────────────
-// > │ ⚡ ᴄᴏʀᴇ ᴍᴀɴᴀɢᴇᴍᴇɴᴛ ⚡    
+// > │ ⚡ *CORE MANAGEMENT* ⚡    
 // > ├────────────────
-// > │ • ˢᵉᵗᵇᵒᵗⁿᵃᵐᵉ              
-// > │ • ˢᵉᵗᵒʷⁿᵉʳ                
-// > │ • ˢᵉᵗᵖʳᵉᶠⁱˣ               
-// > │ • ⁱᵃᴍᵒʷⁿᵉʳ                
-// > │ • ᵃᵇᵒᵘᵗ                   
-// > │ • ᵇˡᵒᶜᵏ                   
-// > │ • ᵘⁿᵇˡᵒᶜᵏ                 
-// > │ • ᵇˡᵒᶜᵏᵈᵉᵗᵉᶜᵗ             
-// > │ • ˢⁱˡᵉⁿᵗ                  
-// > │ • ᵃⁿᵗⁱᶜᵃˡˡ                
-// > │ • ᵐᵒᵈᵉ                    
-// > │ • ᵒⁿˡⁱⁿᵉ                  
-// > │ • ˢᵉᵗᵖᵖ                   
-// > │ • ʳᵉᵖᵒ                    
+// > │ • setbotname              
+// > │ • setowner                
+// > │ • setprefix               
+// > │ • iamowner                
+// > │ • about                   
+// > │ • block                   
+// > │ • unblock                 
+// > │ • blockdetect             
+// > │ • silent                  
+// > │ • anticall                
+// > │ • mode                    
+// > │ • online                  
+// > │ • setpp                   
+// > │ • repo                    
 // > ├────────────────
-// > │ 🔄 sʏsᴛᴇᴍ & ᴍᴀɪɴᴛᴇɴᴀɴᴄᴇ 🛠️ 
+// > │ 🔄 *SYSTEM & MAINTENANCE* 🛠️ 
 // > ├────────────────
-// > │ • ʳᵉˢᴛᵃʳᴛ                 
-// > │ • ʷᵒʳᵏⁱⁿᵍʳᵉˡᵒᵃᵈ           
-// > │ • ʳᵉʟᵒᵃᵈᵉⁿᵛ               
-// > │ • ᵍᵉᵗˢᵉᵗᴛⁱⁿᵍˢ             
-// > │ • ˢᵉᵗˢᵉᵗᴛⁱⁿᵍ              
-// > │ • ᵗᵉˢᵗ                    
-// > │ • ᵈⁱˢᵏ                    
-// > │ • ʰᵒˢᵗⁱᵖ                  
-// > │ • ᶠⁱⁿᵈᶜᵒᴍᴍᵃⁿᵈˢ            
+// > │ • restart                 
+// > │ • workingreload           
+// > │ • reloadenv               
+// > │ • getsettings             
+// > │ • setsetting              
+// > │ • test                    
+// > │ • disk                    
+// > │ • hostip                  
+// > │ • findcommands            
 // > └────────────────
-// > ˢⁱˡᵉⁿᵗ ᵂᵒˡᶠ
+
 // > ┌────────────────
-// > │ ⚙️ ᴀᴜᴛᴏᴍᴀᴛɪᴏɴ ⚙️
+// > │ ⚙️ *AUTOMATION* ⚙️
 // > ├────────────────
-// > │ • ᵃᵘᵗᵒʳᵉᵃᵈ                
-// > │ • ᵃᵘᵗᵒᵗʏᵖⁱⁿᵍ              
-// > │ • ᵃᵘᵗᵒʳᵉᶜᵒʳᵈⁱⁿᵍ           
-// > │ • ᵃᵘᵗᵒʳᵉᵃᶜᵗ               
-// > │ • ᵃᵘᵗᵒʳᵉᵃᶜᵗˢᵗᴀᵗᵘˢ         
-// > │ • ᵃᵘᵗᵒʙɪᵒ                 
-// > │ • ᵃᵘᵗᵒʳᴇᶜ                 
+// > │ • autoread                
+// > │ • autotyping              
+// > │ • autorecording           
+// > │ • autoreact               
+// > │ • autoreactstatus         
+// > │ • autobio                 
+// > │ • autorec                 
 // > └────────────────
-// > ˢⁱˡᵉⁿᵗ ᵂᵒˡᶠ
+
 // > ┌────────────────
-// > │ ✨ ɢᴇɴᴇʀᴀʟ ᴜᴛɪʟɪᴛɪᴇs ✨
+// > │ ✨ *GENERAL UTILITIES* ✨
 // > ├────────────────
-// > │ 🔍 ɪɴꜰᴏ & sᴇᴀʀᴄʜ 🔎
+// > │ 🔍 *INFO & SEARCH* 🔎
 // > ├────────────────
-// > │ • ᵃˡⁱᵛᵉ
-// > │ • ᵖⁱⁿᵍ
-// > │ • ᵖⁱⁿᵍ²
-// > │ • ᵗⁱᵐᵉ
-// > │ • ᴄᴏⁿⁿᵉᴄᴛɪᵒⁿ
-// > │ • ᴅᵉᶠⁱⁿᵉ
-// > │ • ⁿᵉʷˢ
-// > │ • ᶜᵒᵛⁱᵈ
-// > │ • ⁱᵖˡᵒᵒᵏᵘᵖ
-// > │ • ᵍᵉᵗⁱᵖ
-// > │ • ᵍᵉᵗᵖᵖ
-// > │ • ᵍᵉᵗᵍᵖᵖ
-// > │ • ᵖʳᵉᶠⁱˣⁱⁿᶠᵒ
+// > │ • alive
+// > │ • ping
+// > │ • ping2
+// > │ • time
+// > │ • connection
+// > │ • define
+// > │ • news
+// > │ • covid
+// > │ • iplookup
+// > │ • getip
+// > │ • getpp
+// > │ • getgpp
+// > │ • prefixinfo
 // > ├───────────────
-// > │ 🔗 ᴄᴏɴᴠᴇʀsɪᴏɴ & ᴍᴇᴅɪᴀ 📁
+// > │ 🔗 *CONVERSION & MEDIA* 📁
 // > ├───────────────
-// > │ • ˢʰᵒʳᵗᵘʳˡ
-// > │ • ᵠʳᵉⁿᶜᵒᵈᵉ
-// > │ • ᵗᵃᴋᵉ
-// > │ • ⁱᵐᵍᵇʙ
-// > │ • ᵗⁱᵏᵗᵒᵏ
-// > │ • ˢᵃᵛᵉ
+// > │ • shorturl
+// > │ • qrencode
+// > │ • take
+// > │ • imgbb
+// > │ • tiktok
+// > │ • save
 // > ├───────────────
-// > │ 📝 ᴘᴇʀsᴏɴᴀʟ ᴛᴏᴏʟs 📅
+// > │ 📝 *PERSONAL TOOLS* 📅
 // > ├───────────────
-// > │ • ᵖᵃⁱʳ
-// > │ • ʳᵉˢᵉᵗʷᴀʳⁿ
-// > │ • ˢᵉᵗʷᴀʳⁿ
+// > │ • pair
+// > │ • resetwarn
+// > │ • setwarn
 // > └────────────────
-// > ˢⁱˡᵉⁿᵗ ᵂᵒˡᶠ
+
 // > ┌────────────────
-// > │ 🎵 ᴍᴜsɪᴄ & ᴍᴇᴅɪᴀ 🎶
+// > │ 🎵 *MUSIC & MEDIA* 🎶
 // > ├────────────────
-// > │ • ᵖˡᵃʸ                    
-// > │ • ˢᵒⁿᵍ                    
-// > │ • ˡʸʳⁱᶜˢ                  
-// > │ • ˢᵖᵒᵗⁱᶠʸ                
-// > │ • ᵛⁱᵈᵉᵒ                  
-// > │ • ᵛⁱᵈᵉᵒ²                  
-// > │ • ᵇᵃˢˢᵇᵒᵒˢᵗ               
-// > │ • ᵗʳᵉᵇˡᵉᵇᵒᵒˢᵗ             
+// > │ • play                    
+// > │ • song                    
+// > │ • lyrics                  
+// > │ • spotify                 
+// > │ • video                   
+// > │ • video2                  
+// > │ • bassboost               
+// > │ • trebleboost             
 // > └────────────────
-// > ˢⁱˡᵉⁿᵗ ᵂᵒˡᶠ
+
 // > ┌───────────────
-// > │ 🤖 ᴍᴇᴅɪᴀ & ᴀɪ ᴄᴏᴍᴍᴀɴᴅs 🧠 
+// > │ 🤖 *MEDIA & AI COMMANDS* 🧠 
 // > ├───────────────
-// > │ ⬇️ ᴍᴇᴅɪᴀ ᴅᴏᴡɴʟᴏᴀᴅs 📥     
+// > │ ⬇️ *MEDIA DOWNLOADS* 📥     
 // > ├───────────────
-// > │ • ʸᵒᵘᵗᵘᵇᵉ                 
-// > │ • ᵗⁱᵏᵗᵒᵏ                  
-// > │ • ⁱⁿˢᵗᵃᵍʳᵃᴍ               
-// > │ • ᶠᵃᶜᵉᵇᵒᵒᵏ                
-// > │ • ˢⁿᵃᵖᶜʰᵃᵗ                
-// > │ • ᵃᵖᵏ                     
+// > │ • youtube                 
+// > │ • tiktok                 
+// > │ • instagram               
+// > │ • facebook                
+// > │ • snapchat                
+// > │ • apk                     
 // > ├───────────────
-// > │ 🎨 ᴀɪ ɢᴇɴᴇʀᴀᴛɪᴏɴ 💡    
+// > │ 🎨 *AI GENERATION* 💡    
 // > ├───────────────
-// > │ • ᵍᵖᵗ                     
-// > │ • ᵍᵉᵐⁱⁿⁱ                  
-// > │ • ᵈᵉᵉᵖˢᵉᵉᵏ                
-// > │ • ᵈᵉᵉᵖˢᵉᵉᵏ⁺               
-// > │ • ᵃⁿᵃˡʸᶻᵉ                 
-// > │ • ˢᵘⁿᵒ                    
-// > │ • ʷᵒˡᶠᵇᵒᵗ                 
-// > │ • ᵛⁱᵈᵉᵒᵍᵉⁿ                
+// > │ • gpt                     
+// > │ • gemini                  
+// > │ • deepseek                
+// > │ • deepseek+               
+// > │ • analyze                 
+// > │ • suno                    
+// > │ • wolfbot                 
+// > │ • videogen                
 // > └───────────────
-// > ˢⁱˡᵉⁿᵗ ᵂᵒˡᶠ
+
 // > ┌───────────────
-// > │ 🖼️ ɪᴍᴀɢᴇ ᴛᴏᴏʟs 🖼️
+// > │ 🖼️ *IMAGE TOOLS* 🖼️
 // > ├───────────────
-// > │ • ⁱᵐᵃᵍᵉ                   
-// > │ • ⁱᵐᵃᵍᵉᵍᵉⁿᵉʳᵃᵗᵉ           
-// > │ • ᵃⁿⁱᴍᵉ                   
-// > │ • ᵃʳᵗ                     
-// > │ • ʳᵉᵃˡ                    
+// > │ • image                   
+// > │ • imagegenerate           
+// > │ • anime                   
+// > │ • art                     
+// > │ • real                    
 // > └───────────────
-// > ˢⁱˡᵉⁿᵗ ᵂᵒˡᶠ
+
 // > ┌───────────────
-// > │ 🛡️ sᴇᴄᴜʀɪᴛʏ & ʜᴀᴄᴋɪɴɢ 🔒 
+// > │ 🛡️ *SECURITY & HACKING* 🔒 
 // > ├───────────────
-// > │ 🌐 ɴᴇᴛᴡᴏʀᴋ & ɪɴꜰᴏ 📡   
+// > │ 🌐 *NETWORK & INFO* 📡   
 // > ├───────────────
-// > │ • ⁱᵖⁱⁿᶠᵒ                   
-// > │ • ˢʰᵒᵈᵃⁿ                  
-// > │ • ⁱᵖˡᵒᵒᵏᵘᵖ                
-// > │ • ᵍᵉᵗⁱᵖ                    
+// > │ • ipinfo                  
+// > │ • shodan                  
+// > │ • iplookup                
+// > │ • getip                   
 // > └───────────────
-// > ˢⁱˡᵉⁿᵗ ᵂᵒˡᶠ
+
 // > ┌────────────────
-// > │ 🎨 ʟᴏɢᴏ ᴅᴇsɪɢɴ sᴛᴜᴅɪᴏ 🎨
+// > │ 🎨 *LOGO DESIGN STUDIO* 🎨
 // > ├────────────────
-// > │ 🌟 ᴘʀᴇᴍɪᴜᴍ ᴍᴇᴛᴀʟs 🌟    
+// > │ 🌟 *PREMIUM METALS* 🌟    
 // > ├────────────────
-// > │ • ᵍᵒˡᵈˡᵒᵍᵒ                 
-// > │ • ˢⁱˡᵛᵉʳˡᵒᵍᵒ               
-// > │ • ᵖˡᵃᵗⁱⁿᵘᴍˡᵒᵍᵒ             
-// > │ • ᶜʰʳᵒᴍᵉˡᵒᵍᵒ               
-// > │ • ᵈⁱᵃᴍᵒⁿᵈˡᵒᵍᵒ              
-// > │ • ᵇʳᵒⁿᶻᵉˡᵒᵍᵒ               
-// > │ • ˢᵗᵉᵉˡᵒᵍᵒ                 
-// > │ • ᶜᵒᵖᵖᵉʳˡᵒᵍᵒ               
-// > │ • ᵗⁱᵗᵃⁿⁱᵘᵐˡᵒᵍᵒ             
+// > │ • goldlogo                
+// > │ • silverlogo              
+// > │ • platinumlogo            
+// > │ • chromelogo              
+// > │ • diamondlogo             
+// > │ • bronzelogo              
+// > │ • steelogo                
+// > │ • copperlogo              
+// > │ • titaniumlogo            
 // > ├────────────────
-// > │ 🔥 ᴇʟᴇᴍᴇɴᴛᴀʟ ᴇꜰꜰᴇᴄᴛs 🔥  
+// > │ 🔥 *ELEMENTAL EFFECTS* 🔥  
 // > ├────────────────
-// > │ • ᶠⁱʳᵉˡᵒᵍᵒ                 
-// > │ • ⁱᶜᵉˡᵒᵍᵒ                  
-// > │ • ⁱᶜᵉᵍˡᵒʷˡᵒᵍᵒ              
-// > │ • ˡⁱᵍʰᵗⁿⁱⁿᵍˡᵒᵍᵒ            
-// > │ • ᵃᵠᵘᵃˡᵒᵍᵒ                 
-// > │ • ʳᵃⁱⁿᵇʷˡᵒᵍᵒ               
-// > │ • ˢᵘⁿˡᵒᵍᵒ                  
-// > │ • ᵐᵒᵒⁿˡᵒᵍᵒ                 
+// > │ • firelogo                
+// > │ • icelogo                 
+// > │ • iceglowlogo             
+// > │ • lightninglogo           
+// > │ • aqualogo                
+// > │ • rainbowlogo             
+// > │ • sunlogo                 
+// > │ • moonlogo                
 // > ├────────────────
-// > │ 🎭 ᴍʏᴛʜɪᴄᴀʟ & ᴍᴀɢɪᴄᴀʟ 🧙  
+// > │ 🎭 *MYTHICAL & MAGICAL* 🧙  
 // > ├────────────────
-// > │ • ᵈʳᵃᵍᵒⁿˡᵒᵍᵒ               
-// > │ • ᵖʰᵒᵉⁿⁱˣˡᵒᵍᵒ              
-// > │ • ʷⁱᶻᵃʳᵈˡᵒᵍᵒ               
-// > │ • ᶜʳʸˢᵗᵃˡˡᵒᵍᵒ              
-// > │ • ᵈᵃʳᵏᵐᵃᵍⁱᶜˡᵒᵍᵒ            
+// > │ • dragonlogo              
+// > │ • phoenixlogo             
+// > │ • wizardlogo              
+// > │ • crystallogo             
+// > │ • darkmagiclogo           
 // > ├────────────────
-// > │ 🌌 ᴅᴀʀᴋ & ɢᴏᴛʜɪᴄ 🌑      
+// > │ 🌌 *DARK & GOTHIC* 🌑     
 // > ├────────────────
-// > │ • ˢʰᵃᵈᵒʷˡᵒᵍᵒ               
-// > │ • ˢᵐᵒᵏᵉˡᵒᵍᵒ                
-// > │ • ᵇˡᵒᵒᵈˡᵒᵍᵒ                
+// > │ • shadowlogo              
+// > │ • smokelogo               
+// > │ • bloodlogo               
 // > ├────────────────
-// > │ 💫 ɢʟᴏᴡ & ɴᴇᴏɴ ᴇꜰꜰᴇᴄᴛs 🌈  
+// > │ 💫 *GLOW & NEON EFFECTS* 🌈  
 // > ├────────────────
-// > │ • ⁿᵉᵒⁿˡᵒᵍᵒ                 
-// > │ • ᵍˡᵒʷˡᵒᵍᵒ                 
+// > │ • neonlogo                
+// > │ • glowlogo                
 // > ├────────────────
-// > │ 🤖 ᴛᴇᴄʜ & ꜰᴜᴛᴜʀɪsᴛɪᴄ 🚀  
+// > │ 🤖 *TECH & FUTURISTIC* 🚀  
 // > ├────────────────
-// > │ • ᵐᵃᵗʳⁱˣˡᵒᵍᵒ               
+// > │ • matrixlogo              
 // > └────────────────
-// > ˢⁱˡᵉⁿᵗ ᵂᵒˡᶠ
+
 // > ┌────────────────
-// > │ 🐙 ɢɪᴛʜᴜʙ ᴄᴏᴍᴍᴀɴᴅs 🐙
+// > │ 🐙 *GITHUB COMMANDS* 🐙
 // > ├────────────────
-// > │ • ᵍⁱᵗᶜˡᵒⁿᵉ
-// > │ • ᵍⁱᵗⁱⁿᶠᵒ
-// > │ • ʳᵉᵖᵒ
-// > │ • ᶜᵒᵐᴍⁱᵗˢ
-// > │ • ˢᵗᵃʳˢ
-// > │ • ʷᵃᵗᶜʰᵉʳˢ
-// > │ • ʳᵉˡᵉᵃˢᵉ
+// > │ • gitclone
+// > │ • gitinfo
+// > │ • repo
+// > │ • commits
+// > │ • stars
+// > │ • watchers
+// > │ • release
 // > └────────────────
-// > ˢⁱˡᵉⁿᵗ ᵂᵒˡᶠ
+
 // > ┌────────────────
-// > │ 🌸 ᴀɴɪᴍᴇ ᴄᴏᴍᴍᴀɴᴅs 🌸
+// > │ 🌸 *ANIME COMMANDS* 🌸
 // > ├────────────────
-// > │ • ᵃʷᵒᵒ
-// > │ • ᵇʲ
-// > │ • ᵇᵘˡˡʸ
-// > │ • ᶜʳⁱⁿᵍᵉ
-// > │ • ᶜʳʸ
-// > │ • ᶜᵘᵈᵈˡᵉ
-// > │ • ᵈᵃⁿᶜᵉ
-// > │ • ᵍˡᵒᴍᵖ
-// > │ • ʰⁱᵍʰᶠⁱᵛᵉ
-// > │ • ᵏⁱˡˡ
-// > │ • ᵏⁱˢˢ
-// > │ • ˡⁱᶜᵏ
-// > │ • ᵐᵉᵍᵘᵐⁱⁿ
-// > │ • ⁿᵉᵏᵒ
-// > │ • ᵖᵃᵗ
-// > │ • ˢʰⁱⁿᵒᵇᵘ
-// > │ • ᵗʳᵃᵖ
-// > │ • ᵗʳᵃᵖ²
-// > │ • ʷᵃⁱᶠᵘ
-// > │ • ʷⁱⁿᵏ
-// > │ • ʸᵉᵉᵗ
+// > │ • awoo
+// > │ • bj
+// > │ • bully
+// > │ • cringe
+// > │ • cry
+// > │ • cuddle
+// > │ • dance
+// > │ • glomp
+// > │ • highfive
+// > │ • kill
+// > │ • kiss
+// > │ • lick
+// > │ • megumin
+// > │ • neko
+// > │ • pat
+// > │ • shinobu
+// > │ • trap
+// > │ • trap2
+// > │ • waifu
+// > │ • wink
+// > │ • yeet
 // > └────────────────
-// > ˢⁱˡᵉⁿᵗ ᵂᵒˡᶠ
-// > 🐺*ᴘᴏᴡᴇʀᴇᴅ ʙʏ ᴡᴏʟꜰ ᴛᴇᴄʜ*🐺
+
+// > 🐺*POWERED BY WOLF TECH*🐺
 // `;
 
 //   // ========== APPLY "READ MORE" EFFECT ==========
@@ -3045,6 +2286,780 @@ case 5: {
 //   console.log(`✅ Text menu sent with "Read more" effect`);
 //   break;
 // }
+
+
+
+
+
+
+case 5: {
+  // First, get the bot name BEFORE showing loading message
+  const getBotName = () => {
+    try {
+      const possiblePaths = [
+        './bot_settings.json',
+        path.join(__dirname, 'bot_settings.json'),
+        path.join(__dirname, '../bot_settings.json'),
+        path.join(__dirname, '../../bot_settings.json'),
+        path.join(__dirname, '../../../bot_settings.json'),
+        path.join(__dirname, '../commands/owner/bot_settings.json'),
+      ];
+      
+      for (const settingsPath of possiblePaths) {
+        if (fs.existsSync(settingsPath)) {
+          try {
+            const settingsData = fs.readFileSync(settingsPath, 'utf8');
+            const settings = JSON.parse(settingsData);
+            
+            if (settings.botName && settings.botName.trim() !== '') {
+              return settings.botName.trim();
+            }
+          } catch (parseError) {}
+        }
+      }
+      
+      if (global.BOT_NAME) {
+        return global.BOT_NAME;
+      }
+      
+      if (process.env.BOT_NAME) {
+        return process.env.BOT_NAME;
+      }
+      
+    } catch (error) {}
+    
+    return 'WOLFBOT';
+  };
+  
+  // Get the current bot name
+  const currentBotName = getBotName();
+  
+  // ========== SIMPLE LOADING MESSAGE ==========
+  const loadingMessage = `⚡ ${currentBotName} menu loading...`;
+  
+  // Send loading message
+  await sock.sendMessage(jid, { text: loadingMessage }, { quoted: m });
+  
+  // Add a small delay
+  await new Promise(resolve => setTimeout(resolve, 800));
+  
+  // ========== REST OF YOUR EXISTING CODE ==========
+  // 📝 Full info + commands (with individual toggles)
+  let finalText = "";
+  
+  // ========== ADD "READ MORE" HELPER FUNCTION ==========
+  const createReadMoreEffect = (text1, text2) => {
+    /**
+     * Creates WhatsApp's "Read more" effect using invisible characters
+     * @param {string} text1 - First part (visible before "Read more")
+     * @param {string} text2 - Second part (hidden after "Read more")
+     * @returns {string} Formatted text with "Read more" effect
+     */
+    
+    // WhatsApp needs MORE invisible characters to trigger "Read more"
+    // Use 500+ characters for better reliability
+    const invisibleChars = [
+      '\u200E',    // LEFT-TO-RIGHT MARK
+      '\u200F',    // RIGHT-TO-LEFT MARK
+      '\u200B',    // ZERO WIDTH SPACE
+      '\u200C',    // ZERO WIDTH NON-JOINER
+      '\u200D',    // ZERO WIDTH JOINER
+      '\u2060',    // WORD JOINER
+      '\uFEFF',    // ZERO WIDTH NO-BREAK SPACE
+    ];
+    
+    // Create a LONG string of invisible characters (500-600 chars)
+    // WhatsApp needs enough to break the line detection
+    const invisibleString = Array.from({ length: 550 }, 
+      (_, i) => invisibleChars[i % invisibleChars.length]
+    ).join('');
+    
+    // Add a newline after invisible characters for cleaner break
+    return `${text1}${invisibleString}\n${text2}`;
+  };
+  // ========== END OF HELPER FUNCTION ==========
+  
+  // Add these helper functions at the start of case 5 (same as case 7)
+  const getBotMode = () => {
+    try {
+      const possiblePaths = [
+        './bot_mode.json',
+        path.join(__dirname, 'bot_mode.json'),
+        path.join(__dirname, '../bot_mode.json'),
+        path.join(__dirname, '../../bot_mode.json'),
+        path.join(__dirname, '../../../bot_mode.json'),
+        path.join(__dirname, '../commands/owner/bot_mode.json'),
+      ];
+      
+      for (const modePath of possiblePaths) {
+        if (fs.existsSync(modePath)) {
+          try {
+            const modeData = JSON.parse(fs.readFileSync(modePath, 'utf8'));
+            
+            if (modeData.mode) {
+              let displayMode;
+              switch(modeData.mode.toLowerCase()) {
+                case 'public':
+                  displayMode = '🌍 Public';
+                  break;
+                case 'silent':
+                  displayMode = '🔇 Silent';
+                  break;
+                case 'private':
+                  displayMode = '🔒 Private';
+                  break;
+                case 'group-only':
+                  displayMode = '👥 Group Only';
+                  break;
+                case 'maintenance':
+                  displayMode = '🛠️ Maintenance';
+                  break;
+                default:
+                  displayMode = `⚙️ ${modeData.mode.charAt(0).toUpperCase() + modeData.mode.slice(1)}`;
+              }
+              return displayMode;
+            }
+          } catch (parseError) {}
+        }
+      }
+      
+      // Fallback to global variables
+      if (global.BOT_MODE) {
+        return global.BOT_MODE === 'silent' ? '🔇 Silent' : '🌍 Public';
+      }
+      if (global.mode) {
+        return global.mode === 'silent' ? '🔇 Silent' : '🌍 Public';
+      }
+      if (process.env.BOT_MODE) {
+        return process.env.BOT_MODE === 'silent' ? '🔇 Silent' : '🌍 Public';
+      }
+      
+    } catch (error) {}
+    
+    return '🌍 Public';
+  };
+  
+  // Note: getBotName function is already defined above, so we don't need to redefine it
+  
+  const getOwnerName = () => {
+    try {
+      const botSettingsPaths = [
+        './bot_settings.json',
+        path.join(__dirname, 'bot_settings.json'),
+        path.join(__dirname, '../bot_settings.json'),
+        path.join(__dirname, '../../bot_settings.json'),
+      ];
+      
+      for (const settingsPath of botSettingsPaths) {
+        if (fs.existsSync(settingsPath)) {
+          try {
+            const settingsData = fs.readFileSync(settingsPath, 'utf8');
+            const settings = JSON.parse(settingsData);
+            
+            if (settings.ownerName && settings.ownerName.trim() !== '') {
+              return settings.ownerName.trim();
+            }
+          } catch (parseError) {}
+        }
+      }
+      
+      const ownerPath = path.join(__dirname, 'owner.json');
+      if (fs.existsSync(ownerPath)) {
+        const ownerData = fs.readFileSync(ownerPath, 'utf8');
+        const ownerInfo = JSON.parse(ownerData);
+        
+        if (ownerInfo.owner && ownerInfo.owner.trim() !== '') {
+          return ownerInfo.owner.trim();
+        } else if (ownerInfo.number && ownerInfo.number.trim() !== '') {
+          return ownerInfo.number.trim();
+        } else if (ownerInfo.phone && ownerInfo.phone.trim() !== '') {
+          return ownerInfo.phone.trim();
+        } else if (ownerInfo.contact && ownerInfo.contact.trim() !== '') {
+          return ownerInfo.contact.trim();
+        } else if (Array.isArray(ownerInfo) && ownerInfo.length > 0) {
+          const owner = typeof ownerInfo[0] === 'string' ? ownerInfo[0] : "Unknown";
+          return owner;
+        }
+      }
+      
+      if (global.OWNER_NAME) {
+        return global.OWNER_NAME;
+      }
+      if (global.owner) {
+        return global.owner;
+      }
+      if (process.env.OWNER_NUMBER) {
+        return process.env.OWNER_NUMBER;
+      }
+      
+    } catch (error) {}
+    
+    return 'Unknown';
+  };
+  
+  const getBotPrefix = () => {
+    try {
+      const botSettingsPaths = [
+        './bot_settings.json',
+        path.join(__dirname, 'bot_settings.json'),
+        path.join(__dirname, '../bot_settings.json'),
+        path.join(__dirname, '../../bot_settings.json'),
+      ];
+      
+      for (const settingsPath of botSettingsPaths) {
+        if (fs.existsSync(settingsPath)) {
+          try {
+            const settingsData = fs.readFileSync(settingsPath, 'utf8');
+            const settings = JSON.parse(settingsData);
+            
+            if (settings.prefix && settings.prefix.trim() !== '') {
+              return settings.prefix.trim();
+            }
+          } catch (parseError) {}
+        }
+      }
+      
+      if (global.prefix) {
+        return global.prefix;
+      }
+      
+      if (process.env.PREFIX) {
+        return process.env.PREFIX;
+      }
+      
+    } catch (error) {}
+    
+    return '.';
+  };
+  
+  const getBotVersion = () => {
+    try {
+      const ownerPath = path.join(__dirname, 'owner.json');
+      if (fs.existsSync(ownerPath)) {
+        const ownerData = fs.readFileSync(ownerPath, 'utf8');
+        const ownerInfo = JSON.parse(ownerData);
+        
+        if (ownerInfo.version && ownerInfo.version.trim() !== '') {
+          return ownerInfo.version.trim();
+        }
+      }
+      
+      const botSettingsPaths = [
+        './bot_settings.json',
+        path.join(__dirname, 'bot_settings.json'),
+        path.join(__dirname, '../bot_settings.json'),
+      ];
+      
+      for (const settingsPath of botSettingsPaths) {
+        if (fs.existsSync(settingsPath)) {
+          try {
+            const settingsData = fs.readFileSync(settingsPath, 'utf8');
+            const settings = JSON.parse(settingsData);
+            
+            if (settings.version && settings.version.trim() !== '') {
+              return settings.version.trim();
+            }
+          } catch (parseError) {}
+        }
+      }
+      
+      if (global.VERSION) {
+        return global.VERSION;
+      }
+      
+      if (global.version) {
+        return global.version;
+      }
+      
+      if (process.env.VERSION) {
+        return process.env.VERSION;
+      }
+      
+    } catch (error) {}
+    
+    return 'v1.0.0';
+  };
+  
+  const getDeploymentPlatform = () => {
+    // Detect deployment platform
+    if (process.env.REPL_ID || process.env.REPLIT_DB_URL) {
+      return {
+        name: 'Replit',
+        status: 'Active',
+        icon: '🌀'
+      };
+    } else if (process.env.HEROKU_APP_NAME) {
+      return {
+        name: 'Heroku',
+        status: 'Active',
+        icon: '🦸'
+      };
+    } else if (process.env.RENDER_SERVICE_ID) {
+      return {
+        name: 'Render',
+        status: 'Active',
+        icon: '⚡'
+      };
+    } else if (process.env.RAILWAY_ENVIRONMENT) {
+      return {
+        name: 'Railway',
+        status: 'Active',
+        icon: '🚂'
+      };
+    } else if (process.env.VERCEL) {
+      return {
+        name: 'Vercel',
+        status: 'Active',
+        icon: '▲'
+      };
+    } else if (process.env.GLITCH_PROJECT_REMIX) {
+      return {
+        name: 'Glitch',
+        status: 'Active',
+        icon: '🎏'
+      };
+    } else if (process.env.KOYEB) {
+      return {
+        name: 'Koyeb',
+        status: 'Active',
+        icon: '☁️'
+      };
+    } else if (process.env.CYCLIC_URL) {
+      return {
+        name: 'Cyclic',
+        status: 'Active',
+        icon: '🔄'
+      };
+    } else if (process.env.PANEL) {
+      return {
+        name: 'PteroPanel',
+        status: 'Active',
+        icon: '🖥️'
+      };
+    } else if (process.env.SSH_CONNECTION || process.env.SSH_CLIENT) {
+      return {
+        name: 'VPS/SSH',
+        status: 'Active',
+        icon: '🖥️'
+      };
+    } else if (process.platform === 'win32') {
+      return {
+        name: 'Windows PC',
+        status: 'Active',
+        icon: '💻'
+      };
+    } else if (process.platform === 'linux') {
+      return {
+        name: 'Linux VPS',
+        status: 'Active',
+        icon: '🐧'
+      };
+    } else if (process.platform === 'darwin') {
+      return {
+        name: 'MacOS',
+        status: 'Active',
+        icon: '🍎'
+      };
+    } else {
+      return {
+        name: 'Local Machine',
+        status: 'Active',
+        icon: '🏠'
+      };
+    }
+  };
+  
+  // Get current time and date
+  const now = new Date();
+  const currentTime = now.toLocaleTimeString('en-US', { 
+    hour12: true, 
+    hour: '2-digit', 
+    minute: '2-digit',
+    second: '2-digit'
+  });
+  
+  const currentDate = now.toLocaleDateString('en-US', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  });
+  
+  // Load bot information using helper functions (botName already loaded above)
+  const ownerName = getOwnerName();
+  const botPrefix = getBotPrefix();
+  const botVersion = getBotVersion();
+  const botMode = getBotMode();
+  const deploymentPlatform = getDeploymentPlatform();
+  
+  // Add bot name header before the info section
+  let infoSection = `> *🐺 ${currentBotName} 🐺*\n`;
+  
+  // Add info section only if any field is enabled
+  const fieldsStatus = getAllFieldsStatus(style);
+  
+  // ========== FIX: Add safety check for fieldsStatus ==========
+  let hasInfoFields = false;
+  if (fieldsStatus && typeof fieldsStatus === 'object') {
+    hasInfoFields = Object.values(fieldsStatus).some(val => val);
+  } else {
+    // If getAllFieldsStatus doesn't exist or returns invalid, show all info
+    hasInfoFields = true;
+  }
+  
+  if (hasInfoFields) {
+    const start = performance.now();
+    const uptime = process.uptime();
+    const h = Math.floor(uptime / 3600);
+    const mnt = Math.floor((uptime % 3600) / 60);
+    const s = Math.floor(uptime % 60);
+    const uptimeStr = `${h}h ${mnt}m ${s}s`;
+    const speed = (performance.now() - start).toFixed(2);
+    const usedMem = (process.memoryUsage().rss / 1024 / 1024).toFixed(1);
+    const totalMem = (os.totalmem() / 1024 / 1024 / 1024).toFixed(0);
+    
+    // SAFE CALCULATION: Prevent negative or invalid percentages
+    const memPercentNum = ((usedMem / (totalMem * 1024)) * 100);
+    const memPercent = Math.min(Math.max(parseFloat(memPercentNum.toFixed(0)), 0), 100);
+    
+    // SAFE BAR CALCULATION: Prevent negative repeat values
+    const filledBars = Math.max(Math.floor(memPercent / 10), 0);
+    const emptyBars = Math.max(10 - filledBars, 0);
+    const memBar = "█".repeat(filledBars) + "░".repeat(emptyBars);
+    
+    // Calculate command speed in milliseconds
+    const commandSpeed = `${speed}ms`;
+    
+    const infoLines = [];
+    
+    // ========== FIX: Check each field individually ==========
+    if ((fieldsStatus && fieldsStatus.time) || (!fieldsStatus)) infoLines.push(`> ┃ Date: ${currentDate}`);
+    if ((fieldsStatus && fieldsStatus.time) || (!fieldsStatus)) infoLines.push(`> ┃ Time: ${currentTime}`);
+    if ((fieldsStatus && fieldsStatus.user) || (!fieldsStatus)) infoLines.push(`> ┃ User: ${m.pushName || "Anonymous"}`);
+    if ((fieldsStatus && fieldsStatus.owner) || (!fieldsStatus)) infoLines.push(`> ┃ Owner: ${ownerName}`);
+    if ((fieldsStatus && fieldsStatus.mode) || (!fieldsStatus)) infoLines.push(`> ┃ Mode: ${botMode}`);
+    if ((fieldsStatus && fieldsStatus.prefix) || (!fieldsStatus)) infoLines.push(`> ┃ Prefix: [ ${botPrefix} ]`);
+    if ((fieldsStatus && fieldsStatus.version) || (!fieldsStatus)) infoLines.push(`> ┃ Version: ${botVersion}`);
+    if ((fieldsStatus && fieldsStatus.host) || (!fieldsStatus)) {
+      infoLines.push(`> ┃ Panel: ${deploymentPlatform.name}`);
+      infoLines.push(`> ┃ Status: ${deploymentPlatform.status}`);
+    }
+    if ((fieldsStatus && fieldsStatus.speed) || (!fieldsStatus)) {
+      infoLines.push(`> ┃ Speed: ${commandSpeed}`);
+    }
+    if ((fieldsStatus && fieldsStatus.uptime) || (!fieldsStatus)) infoLines.push(`> ┃ Uptime: ${uptimeStr}`);
+    if ((fieldsStatus && fieldsStatus.usage) || (!fieldsStatus)) infoLines.push(`> ┃ Usage: ${usedMem} MB of ${totalMem} GB`);
+    if ((fieldsStatus && fieldsStatus.ram) || (!fieldsStatus)) infoLines.push(`> ┃ RAM: ${memBar} ${memPercent}%`);
+
+    if (infoLines.length > 0) {
+      const infoText = `> ┌────────────────\n${infoLines.join('\n')}\n> └────────────────\n`;
+      infoSection += infoText;
+    }
+  } else {
+    // If no info fields are enabled, still show basic header
+    infoSection += `> *No additional information is enabled.*\n> *Use .togglemenuinfo to customize*\n`;
+  }
+
+  const commandsText = `> ┌────────────────
+> │ 🏠 *GROUP MANAGEMENT* 🏠 
+> ├────────────────
+> │ 🛡️ *ADMIN & MODERATION* 🛡️ 
+> ├────────────────
+> │ • add                     
+> │ • promote                 
+> │ • demote                  
+> │ • kick                    
+> │ • kickall                 
+> │ • ban                     
+> │ • unban                   
+> │ • banlist                 
+> │ • clearbanlist            
+> │ • warn                    
+> │ • resetwarn               
+> │ • setwarn                 
+> │ • mute                    
+> │ • unmute                  
+> │ • gctime                  
+> │ • antileave               
+> │ • antilink                
+> │ • welcome                 
+> ├────────────────
+> │ 🚫 *AUTO-MODERATION* 🚫   
+> ├────────────────
+> │ • antisticker             
+> │ • antiviewonce  
+> │ • antilink  
+> │ • antiimage
+> │ • antivideo
+> │ • antiaudio
+> │ • antimention
+> │ • antistatusmention  
+> │ • antigrouplink
+> ├────────────────
+> │ 📊 *GROUP INFO & TOOLS* 📊 
+> ├────────────────
+> │ • groupinfo               
+> │ • tagadmin                
+> │ • tagall                  
+> │ • hidetag                 
+> │ • link                    
+> │ • invite                  
+> │ • revoke                  
+> │ • setdesc                 
+> │ • fangtrace               
+> │ • getgpp                  
+> └────────────────
+
+> ┌────────────────
+> │ 🎨 *MENU COMMANDS* 🎨
+> ├────────────────
+> │ • togglemenuinfo
+> │ • setmenuimage
+> │ • resetmenuinfo
+> │ • menustyle
+> └────────────────
+
+> ┌────────────────
+> │ 👑 *OWNER CONTROLS* 👑    
+> ├────────────────
+> │ ⚡ *CORE MANAGEMENT* ⚡    
+> ├────────────────
+> │ • setbotname              
+> │ • setowner                
+> │ • setprefix               
+> │ • iamowner                
+> │ • about                   
+> │ • block                   
+> │ • unblock                 
+> │ • blockdetect             
+> │ • silent                  
+> │ • anticall                
+> │ • mode                    
+> │ • online                  
+> │ • setpp                   
+> │ • repo                    
+> ├────────────────
+> │ 🔄 *SYSTEM & MAINTENANCE* 🛠️ 
+> ├────────────────
+> │ • restart                 
+> │ • workingreload           
+> │ • reloadenv               
+> │ • getsettings             
+> │ • setsetting              
+> │ • test                    
+> │ • disk                    
+> │ • hostip                  
+> │ • findcommands            
+> └────────────────
+
+> ┌────────────────
+> │ ⚙️ *AUTOMATION* ⚙️
+> ├────────────────
+> │ • autoread                
+> │ • autotyping              
+> │ • autorecording           
+> │ • autoreact               
+> │ • autoreactstatus         
+> │ • autobio                 
+> │ • autorec                 
+> └────────────────
+
+> ┌────────────────
+> │ ✨ *GENERAL UTILITIES* ✨
+> ├────────────────
+> │ 🔍 *INFO & SEARCH* 🔎
+> ├────────────────
+> │ • alive
+> │ • ping
+> │ • ping2
+> │ • time
+> │ • connection
+> │ • define
+> │ • news
+> │ • covid
+> │ • iplookup
+> │ • getip
+> │ • getpp
+> │ • getgpp
+> │ • prefixinfo
+> ├───────────────
+> │ 🔗 *CONVERSION & MEDIA* 📁
+> ├───────────────
+> │ • shorturl
+> │ • qrencode
+> │ • take
+> │ • imgbb
+> │ • tiktok
+> │ • save
+> ├───────────────
+> │ 📝 *PERSONAL TOOLS* 📅
+> ├───────────────
+> │ • pair
+> │ • resetwarn
+> │ • setwarn
+> └────────────────
+
+> ┌────────────────
+> │ 🎵 *MUSIC & MEDIA* 🎶
+> ├────────────────
+> │ • play                    
+> │ • song                    
+> │ • lyrics                  
+> │ • spotify                 
+> │ • video                   
+> │ • video2                  
+> │ • bassboost               
+> │ • trebleboost             
+> └────────────────
+
+> ┌───────────────
+> │ 🤖 *MEDIA & AI COMMANDS* 🧠 
+> ├───────────────
+> │ ⬇️ *MEDIA DOWNLOADS* 📥     
+> ├───────────────
+> │ • youtube                 
+> │ • tiktok                 
+> │ • instagram               
+> │ • facebook                
+> │ • snapchat                
+> │ • apk                     
+> ├───────────────
+> │ 🎨 *AI GENERATION* 💡    
+> ├───────────────
+> │ • gpt                     
+> │ • gemini                  
+> │ • deepseek                
+> │ • deepseek+               
+> │ • analyze                 
+> │ • suno                    
+> │ • wolfbot                 
+> │ • videogen                
+> └───────────────
+
+> ┌───────────────
+> │ 🖼️ *IMAGE TOOLS* 🖼️
+> ├───────────────
+> │ • image                   
+> │ • imagegenerate           
+> │ • anime                   
+> │ • art                     
+> │ • real                    
+> └───────────────
+
+> ┌───────────────
+> │ 🛡️ *SECURITY & HACKING* 🔒 
+> ├───────────────
+> │ 🌐 *NETWORK & INFO* 📡   
+> ├───────────────
+> │ • ipinfo                  
+> │ • shodan                  
+> │ • iplookup                
+> │ • getip                   
+> └───────────────
+
+> ┌────────────────
+> │ 🎨 *LOGO DESIGN STUDIO* 🎨
+> ├────────────────
+> │ 🌟 *PREMIUM METALS* 🌟    
+> ├────────────────
+> │ • goldlogo                
+> │ • silverlogo              
+> │ • platinumlogo            
+> │ • chromelogo              
+> │ • diamondlogo             
+> │ • bronzelogo              
+> │ • steelogo                
+> │ • copperlogo              
+> │ • titaniumlogo            
+> ├────────────────
+> │ 🔥 *ELEMENTAL EFFECTS* 🔥  
+> ├────────────────
+> │ • firelogo                
+> │ • icelogo                 
+> │ • iceglowlogo             
+> │ • lightninglogo           
+> │ • aqualogo                
+> │ • rainbowlogo             
+> │ • sunlogo                 
+> │ • moonlogo                
+> ├────────────────
+> │ 🎭 *MYTHICAL & MAGICAL* 🧙  
+> ├────────────────
+> │ • dragonlogo              
+> │ • phoenixlogo             
+> │ • wizardlogo              
+> │ • crystallogo             
+> │ • darkmagiclogo           
+> ├────────────────
+> │ 🌌 *DARK & GOTHIC* 🌑     
+> ├────────────────
+> │ • shadowlogo              
+> │ • smokelogo               
+> │ • bloodlogo               
+> ├────────────────
+> │ 💫 *GLOW & NEON EFFECTS* 🌈  
+> ├────────────────
+> │ • neonlogo                
+> │ • glowlogo                
+> ├────────────────
+> │ 🤖 *TECH & FUTURISTIC* 🚀  
+> ├────────────────
+> │ • matrixlogo              
+> └────────────────
+
+> ┌────────────────
+> │ 🐙 *GITHUB COMMANDS* 🐙
+> ├────────────────
+> │ • gitclone
+> │ • gitinfo
+> │ • repo
+> │ • commits
+> │ • stars
+> │ • watchers
+> │ • release
+> └────────────────
+
+> ┌────────────────
+> │ 🌸 *ANIME COMMANDS* 🌸
+> ├────────────────
+> │ • awoo
+> │ • bj
+> │ • bully
+> │ • cringe
+> │ • cry
+> │ • cuddle
+> │ • dance
+> │ • glomp
+> │ • highfive
+> │ • kill
+> │ • kiss
+> │ • lick
+> │ • megumin
+> │ • neko
+> │ • pat
+> │ • shinobu
+> │ • trap
+> │ • trap2
+> │ • waifu
+> │ • wink
+> │ • yeet
+> └────────────────
+
+> 🐺*POWERED BY WOLF TECH*🐺
+`;
+
+  // ========== APPLY "READ MORE" EFFECT ==========
+  // Combine info section (visible) and commands (hidden) with "Read more"
+  finalText = createReadMoreEffect(infoSection, commandsText);
+  // ========== END "READ MORE" EFFECT ==========
+
+  await sock.sendMessage(jid, { text: finalText }, { quoted: m });
+  console.log(`✅ ${currentBotName} menu sent with "Read more" effect`);
+  break;
+}
+
+
+
 
 
 case 6: {

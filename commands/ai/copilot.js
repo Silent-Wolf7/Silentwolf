@@ -57,8 +57,8 @@ export default {
       
       // ====== UPDATE STATUS ======
       await sock.sendMessage(jid, {
-        text: `🤖 *WOLFBOT COPILOT*\n\n` +
-              `💭 *Processing...* ✅\n` +
+        text: `🤖 *WOLFBOT COPILOT*` +
+              `💭 *Processing...* ✅` +
               `⚡ *Formatting response...*`,
         edit: statusMsg.key
       });

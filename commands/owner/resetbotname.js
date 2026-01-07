@@ -8,7 +8,7 @@ const __dirname = path.dirname(__filename);
 
 export default {
     name: 'resetbotname',
-    alias: ['defaultname', 'clearbotname', 'resettobotname', 'restorebotname', 'resetname', 'defaultbotname', 'clearname', 'removebotname', 'deletename', 'resetbot', 'botreset', 'name-reset', 'botname-reset'],
+    alias: ['defaultname','dn','rbn', 'clearbotname', 'resettobotname', 'restorebotname', 'resetname', 'defaultbotname', 'clearname', 'removebotname', 'deletename', 'resetbot', 'botreset', 'name-reset', 'botname-reset'],
     category: 'owner',
     description: 'Reset bot name to default (WOLFBOT)',
     ownerOnly: true,
@@ -86,17 +86,17 @@ export default {
                 // Update environment
                 process.env.BOT_NAME = DEFAULT_NAME;
                 
-                let successMsg = `✅ *Bot Name Reset Successfully!*\n\n`;
+                let successMsg = `✅ *Bot Name Reset Successfully!*\n`;
                 successMsg += `📝 Previous Name: *${oldName}*\n`;
-                successMsg += `🔄 New Name: *${DEFAULT_NAME}*\n\n`;
-                successMsg += `📊 Action: Created default settings file\n`;
-                successMsg += `📁 Files updated: ${keptFiles} location(s)\n\n`;
-                successMsg += `💡 The bot will now use the default name "${DEFAULT_NAME}" in:\n`;
-                successMsg += `├─ Menu header\n`;
-                successMsg += `├─ Command responses\n`;
-                successMsg += `└─ All bot interactions\n\n`;
-                successMsg += `🔧 Use \`${PREFIX}menu\` to see the updated name.\n\n`;
-                successMsg += `💡 *Tip:* Use \`${PREFIX}resetbotname delete\` to completely remove the settings file instead.`;
+                successMsg += `🔄 New Name: *${DEFAULT_NAME}*\n`;
+                // successMsg += `📊 Action: Created default settings file\n`;
+                // successMsg += `📁 Files updated: ${keptFiles} location(s)\n\n`;
+                // successMsg += `💡 The bot will now use the default name "${DEFAULT_NAME}" in:\n`;
+                // successMsg += `├─ Menu header\n`;
+                // successMsg += `├─ Command responses\n`;
+                // successMsg += `└─ All bot interactions\n\n`;
+                // successMsg += `🔧 Use \`${PREFIX}menu\` to see the updated name.\n\n`;
+                // successMsg += `💡 *Tip:* Use \`${PREFIX}resetbotname delete\` to completely remove the settings file instead.`;
                 
                 await sock.sendMessage(chatId, {
                     text: successMsg
