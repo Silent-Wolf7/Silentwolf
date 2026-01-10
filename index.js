@@ -234,9 +234,9 @@ import path from 'path';
 import dotenv from 'dotenv';
 import chalk from 'chalk';
 import readline from 'readline';
-import { File } from 'megajs';
+//import { File } from 'megajs';
 //import mega from 'megajs';
-import * as mega from 'megajs';
+
 
 // Import automation handlers
 import { handleAutoReact } from './commands/automation/autoreactstatus.js';
