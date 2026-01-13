@@ -1,9 +1,9 @@
 {
-  "prefix": "",
-  "isPrefixless": true,
-  "setAt": "2026-01-11T23:00:33.675Z",
-  "timestamp": 1768172433675,
-  "version": "1.3.0",
-  "previousPrefix": "",
-  "previousIsPrefixless": true
+  "prefix": ".",
+  "isPrefixless": false,
+  "setAt": "2026-01-12T12:00:56.423Z",
+  "timestamp": 1768219256423,
+  "version": "1.1.3",
+  "previousPrefix": "/",
+  "previousIsPrefixless": false
 }

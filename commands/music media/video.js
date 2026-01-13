@@ -7,13 +7,12 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Video download APIs
+// Video download APIs with quality options
 const videoAPIs = {
-  izumi: {
-    baseURL: "https://api.izumi-slow.xyz",
-    getVideo: async (youtubeUrl, quality = "720") => {
+  keith: {
+    getVideo: async (youtubeUrl, quality = "360p") => {
       try {
-        const apiUrl = `${videoAPIs.izumi.baseURL}/downloader/youtube?url=${encodeURIComponent(youtubeUrl)}&format=${quality}`;
+        const apiUrl = `https://apiskeith.vercel.app/download/video?url=${encodeURIComponent(youtubeUrl)}`;
         const res = await axios.get(apiUrl, {
           timeout: 30000,
           headers: {
@@ -22,16 +21,44 @@ const videoAPIs = {
           }
         });
         
-        if (res?.data?.result?.download) {
+        if (res?.data?.result) {
           return {
             success: true,
-            download: res.data.result.download,
-            title: res.data.result.title || "YouTube Video",
-            quality: quality,
-            source: "izumi"
+            download: res.data.result,
+            title: res.data.title || "YouTube Video",
+            quality: "auto", // Keith API doesn't specify quality
+            source: "keith"
           };
         }
-        throw new Error('Izumi API: No download link');
+        throw new Error('Keith API: No download link');
+      } catch (error) {
+        return { success: false, error: error.message };
+      }
+    }
+  },
+  
+  yupra: {
+    getVideo: async (youtubeUrl, quality = "360p") => {
+      try {
+        const apiUrl = `https://api.yupra.my.id/api/downloader/ytmp4?url=${encodeURIComponent(youtubeUrl)}`;
+        const res = await axios.get(apiUrl, {
+          timeout: 30000,
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'Accept': 'application/json'
+          }
+        });
+        
+        if (res?.data?.success && res?.data?.data?.download_url) {
+          return {
+            success: true,
+            download: res.data.data.download_url,
+            title: res.data.data.title || "YouTube Video",
+            quality: res.data.data.quality || "auto",
+            source: "yupra"
+          };
+        }
+        throw new Error('Yupra API: No download link');
       } catch (error) {
         return { success: false, error: error.message };
       }
@@ -39,7 +66,7 @@ const videoAPIs = {
   },
   
   okatsu: {
-    getVideo: async (youtubeUrl) => {
+    getVideo: async (youtubeUrl, quality = "360p") => {
       try {
         const apiUrl = `https://okatsu-rolezapiiz.vercel.app/downloader/ytmp4?url=${encodeURIComponent(youtubeUrl)}`;
         const res = await axios.get(apiUrl, {
@@ -55,11 +82,120 @@ const videoAPIs = {
             success: true,
             download: res.data.result.mp4,
             title: res.data.result.title || "YouTube Video",
-            quality: "720p",
+            quality: res.data.result.quality || "auto",
             source: "okatsu"
           };
         }
         throw new Error('Okatsu API: No mp4 link');
+      } catch (error) {
+        return { success: false, error: error.message };
+      }
+    }
+  }
+};
+
+// Try different quality APIs
+const lowQualityAPIs = {
+  // This API supports quality parameters (144p, 240p, 360p, 480p, 720p, 1080p)
+  yt5s: {
+    getVideo: async (youtubeUrl, quality = "360p") => {
+      try {
+        // First get the video info to get available qualities
+        const infoUrl = `https://yt5s.com/api/ajaxSearch`;
+        const infoRes = await axios.post(infoUrl, 
+          `q=${encodeURIComponent(youtubeUrl)}&vt=home`,
+          {
+            timeout: 30000,
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+              'Content-Type': 'application/x-www-form-urlencoded',
+              'Origin': 'https://yt5s.com',
+              'Referer': 'https://yt5s.com/'
+            }
+          }
+        );
+        
+        if (infoRes.data?.links?.mp4) {
+          // Try to get lower quality first
+          const qualities = ["144", "240", "360", "480", "720", "1080"];
+          let selectedQuality = "360"; // Default to 360p
+          
+          for (const q of qualities) {
+            if (infoRes.data.links.mp4[q]) {
+              selectedQuality = q;
+              break; // Take the first available (lowest)
+            }
+          }
+          
+          const downloadLink = infoRes.data.links.mp4[selectedQuality];
+          
+          if (downloadLink) {
+            // Get the actual download URL
+            const downloadRes = await axios.post(
+              'https://yt5s.com/api/ajaxConvert',
+              `vid=${infoRes.data.vid}&k=${downloadLink.k}`,
+              {
+                headers: {
+                  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                  'Content-Type': 'application/x-www-form-urlencoded',
+                  'Origin': 'https://yt5s.com',
+                  'Referer': 'https://yt5s.com/'
+                }
+              }
+            );
+            
+            if (downloadRes.data?.dlink) {
+              return {
+                success: true,
+                download: downloadRes.data.dlink,
+                title: infoRes.data.title || "YouTube Video",
+                quality: `${selectedQuality}p`,
+                source: "yt5s"
+              };
+            }
+          }
+        }
+        throw new Error('YT5s API: No download link');
+      } catch (error) {
+        return { success: false, error: error.message };
+      }
+    }
+  },
+  
+  // Another low quality API
+  ytdl: {
+    getVideo: async (youtubeUrl, quality = "lowest") => {
+      try {
+        const apiUrl = `https://api.ytbvideoly.com/api/videoInfo?url=${encodeURIComponent(youtubeUrl)}`;
+        const res = await axios.get(apiUrl, {
+          timeout: 30000,
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+          }
+        });
+        
+        if (res.data?.video?.sources) {
+          // Sort by size (smallest first) and take the first one
+          const sortedSources = res.data.video.sources
+            .filter(source => source.quality && source.url)
+            .sort((a, b) => {
+              // Try to sort by quality number
+              const aQuality = parseInt(a.quality) || 9999;
+              const bQuality = parseInt(b.quality) || 9999;
+              return aQuality - bQuality;
+            });
+          
+          if (sortedSources.length > 0) {
+            return {
+              success: true,
+              download: sortedSources[0].url,
+              title: res.data.video.title || "YouTube Video",
+              quality: sortedSources[0].quality || "low",
+              source: "ytdl"
+            };
+          }
+        }
+        throw new Error('YTDl API: No download link');
       } catch (error) {
         return { success: false, error: error.message };
       }
@@ -85,98 +221,119 @@ const extractYouTubeId = (url) => {
   return null;
 };
 
+// Estimate video size based on duration and quality
+const estimateVideoSize = (durationSeconds, quality = "360p") => {
+  // Approximate bitrates (kbps)
+  const bitrates = {
+    "144p": 100,
+    "240p": 250,
+    "360p": 500,
+    "480p": 1000,
+    "720p": 2000,
+    "1080p": 4000,
+    "auto": 1000, // Default
+    "low": 300,
+    "medium": 800,
+    "high": 2000
+  };
+  
+  const bitrate = bitrates[quality.toLowerCase()] || 500; // Default to 360p
+  // Calculate size: (bitrate * duration) / 8 = size in kilobits, /1024 = MB
+  const sizeMB = (bitrate * durationSeconds) / (8 * 1024);
+  
+  return Math.round(sizeMB * 10) / 10; // Round to 1 decimal
+};
+
 // Main command
 export default {
   name: "video",
-  aliases: ["vid", "ytv", "ytvideo", "ytmp4"],
-  description: "Download YouTube videos with quality options",
+  aliases: ["vid2", "ytv2", "ytvideo2", "video2"],
+  description: "Download and send YouTube videos as video files",
   async execute(sock, m, args) {
     const jid = m.key.remoteJid;
-    const qualityOptions = ["144", "240", "360", "480", "720", "1080"];
     
     try {
+      // Add reaction
+      await sock.sendMessage(jid, {
+        react: { text: '🎬', key: m.key }
+      });
+
       if (args.length === 0) {
         await sock.sendMessage(jid, { 
-          text: `🎬 *YouTube Video Downloader*\n\nUsage:\n• \`video [quality] song name\`\n• \`video [quality] https://youtube.com/...\`\n.`
+          text: `🎬 *YouTube Video Downloader*\n\nUsage:\n• \`video2 song name\`\n• \`video2 https://youtube.com/...\`\n\nAdd \`-low\` for smaller file size\nExample: video2 Not Like Us -low`
         }, { quoted: m });
         return;
       }
 
-      // Parse quality and search query
-      let quality = "720"; // Default
-      let searchQuery = args.join(" ");
+      // Check for quality flag
+      const qualityFlag = args.includes('-low') ? 'low' : 
+                         args.includes('-medium') ? 'medium' : 
+                         args.includes('-high') ? 'high' : 'auto';
       
-      // Check if first arg is a quality option
-      if (qualityOptions.includes(args[0].toLowerCase())) {
-        quality = args[0].toLowerCase();
-        searchQuery = args.slice(1).join(" ");
-      } else if (args[0].startsWith("--quality=") || args[0].startsWith("-q=")) {
-        // Alternative format: --quality=720
-        const match = args[0].match(/[=](.+)/);
-        if (match && qualityOptions.includes(match[1])) {
-          quality = match[1];
-          searchQuery = args.slice(1).join(" ");
-        }
+      // Remove flags from search query
+      const searchQuery = args.filter(arg => !arg.startsWith('-')).join(" ");
+      
+      // Check query length
+      if (searchQuery.length > 100) {
+        await sock.sendMessage(jid, { 
+          text: `📝 Input too long! Max 100 characters.`,
+          quoted: m 
+        });
+        return;
       }
-
-      console.log(`🎬 [VIDEO] Request: "${searchQuery}" Quality: ${quality}p`);
+      
+      console.log(`🎬 [VIDEO2] Request: "${searchQuery}" (Quality: ${qualityFlag})`);
 
       // Send initial status
       const statusMsg = await sock.sendMessage(jid, { 
-        text: `🔍 *Searching*: "${searchQuery}"\n📹 *Quality:* ${quality}p`
+        text: `🔍 *Searching*: "${searchQuery}"\n⚡ Looking for video...`
       }, { quoted: m });
 
-      // Determine if input is YouTube link or search query
       let videoUrl = '';
       let videoTitle = '';
       let videoThumbnail = '';
-      
-      // Check if it's a URL
-      const isUrl = searchQuery.startsWith('http://') || searchQuery.startsWith('https://');
-      
-      if (isUrl) {
+      let videoId = '';
+      let videoDuration = 0;
+
+      // Check if input is a YouTube URL
+      if (searchQuery.match(/(youtube\.com|youtu\.be)/i)) {
         videoUrl = searchQuery;
-        const videoId = extractYouTubeId(videoUrl);
+        videoId = extractYouTubeId(videoUrl);
         
         if (!videoId) {
           await sock.sendMessage(jid, { 
-            text: `❌ Invalid YouTube URL\nPlease provide a valid YouTube link.`,
+            text: `❌ Invalid YouTube URL!\nPlease provide a valid YouTube link.`,
             edit: statusMsg.key 
           });
           return;
         }
         
-        // Fetch video info
+        videoTitle = "YouTube Video";
+        videoThumbnail = `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
+        
+        // Try to get video info
         try {
-          await sock.sendMessage(jid, { 
-            text: `🔍 *Searching*: "${searchQuery}"\n📹 *Quality:* ${quality}p\n📡 Fetching video info...`,
-            edit: statusMsg.key 
-          });
-          
           const { videos } = await yts({ videoId });
           if (videos && videos.length > 0) {
             videoTitle = videos[0].title;
-            videoThumbnail = videos[0].thumbnail || `https://i.ytimg.com/vi/${videoId}/maxresdefault.jpg`;
-          } else {
-            videoTitle = "YouTube Video";
-            videoThumbnail = `https://i.ytimg.com/vi/${videoId}/maxresdefault.jpg`;
+            videoDuration = videos[0].duration?.seconds || 0;
+            videoThumbnail = videos[0].thumbnail || videoThumbnail;
           }
         } catch (infoError) {
-          videoTitle = "YouTube Video";
-          videoThumbnail = `https://i.ytimg.com/vi/${videoId}/maxresdefault.jpg`;
+          console.log("⚠️ [VIDEO2] Could not fetch video info:", infoError.message);
         }
       } else {
-        // Search YouTube
+        // Search for video
         try {
           await sock.sendMessage(jid, { 
-            text: `🔍 *Searching*: "${searchQuery}"\n📹 *Quality:* ${quality}p\n📡 Looking for best match...`,
+            text: `🔍 *Searching*: "${searchQuery}"\n📡 Looking for best match...`,
             edit: statusMsg.key 
           });
           
           const { videos } = await yts(searchQuery);
           if (!videos || videos.length === 0) {
             await sock.sendMessage(jid, { 
-              text: `❌ No videos found for "${searchQuery}"\nTry different keywords or use direct YouTube link.`,
+              text: `😕 Couldn't find that video. Try another one!`,
               edit: statusMsg.key 
             });
             return;
@@ -184,51 +341,89 @@ export default {
           
           videoUrl = videos[0].url;
           videoTitle = videos[0].title;
+          videoDuration = videos[0].duration?.seconds || 0;
           videoThumbnail = videos[0].thumbnail;
+          videoId = extractYouTubeId(videoUrl);
           
-          console.log(`🎬 [VIDEO] Found: ${videoTitle} - ${videoUrl}`);
+          console.log(`🎬 [VIDEO2] Found: ${videoTitle} (${videoDuration}s) - ${videoUrl}`);
           
           await sock.sendMessage(jid, { 
-            text: `🔍 *Searching*: "${searchQuery}" ✅\n🎬 *Found:* ${videoTitle}\n📹 *Quality:* ${quality}p\n⬇️ *Getting download link...*`,
+            text: `✅ *Found:* ${videoTitle}\n⬇️ *Getting download link...*`,
             edit: statusMsg.key 
           });
           
         } catch (searchError) {
-          console.error("❌ [VIDEO] Search error:", searchError);
+          console.error("❌ [VIDEO2] Search error:", searchError);
           await sock.sendMessage(jid, { 
-            text: `❌ Search failed. Please use direct YouTube link.\nExample: video 720 https://youtube.com/watch?v=...`,
+            text: `❌ Search failed. Please use direct YouTube link.\nExample: video2 https://youtube.com/watch?v=...`,
             edit: statusMsg.key 
           });
           return;
         }
       }
 
-      // Try multiple APIs sequentially
-      let videoResult = null;
-      const apisToTry = [
-        () => videoAPIs.izumi.getVideo(videoUrl, quality),
-        () => videoAPIs.okatsu.getVideo(videoUrl)
-      ];
+      // Estimate file size
+      const estimatedSize = estimateVideoSize(videoDuration, qualityFlag === 'low' ? '240p' : '360p');
       
-      for (const apiCall of apisToTry) {
+      if (estimatedSize > 16 && qualityFlag !== 'low') {
+        await sock.sendMessage(jid, { 
+          text: `⚠️ *Warning:* Estimated size: ${estimatedSize}MB\nThis might exceed WhatsApp limit.\nTry with \`-low\` flag for smaller size.`,
+          edit: statusMsg.key 
+        });
+      }
+
+      // Try multiple APIs sequentially with quality preference
+      let videoResult = null;
+      let apisToTry;
+      
+      if (qualityFlag === 'low') {
+        // Try low quality APIs first
+        apisToTry = [
+          () => lowQualityAPIs.ytdl.getVideo(videoUrl, 'lowest'),
+          () => lowQualityAPIs.yt5s.getVideo(videoUrl, '240p'),
+          () => videoAPIs.keith.getVideo(videoUrl),
+          () => videoAPIs.yupra.getVideo(videoUrl),
+          () => videoAPIs.okatsu.getVideo(videoUrl)
+        ];
+      } else {
+        // Default: try all APIs
+        apisToTry = [
+          () => lowQualityAPIs.ytdl.getVideo(videoUrl, 'lowest'),
+          () => lowQualityAPIs.yt5s.getVideo(videoUrl, '360p'),
+          () => videoAPIs.keith.getVideo(videoUrl),
+          () => videoAPIs.yupra.getVideo(videoUrl),
+          () => videoAPIs.okatsu.getVideo(videoUrl)
+        ];
+      }
+      
+      for (let i = 0; i < apisToTry.length; i++) {
+        const apiCall = apisToTry[i];
+        const apiName = i < 2 ? Object.keys(lowQualityAPIs)[i] : Object.keys(videoAPIs)[i-2];
+        
         try {
-          console.log(`🎬 [VIDEO] Trying ${apiCall.name || 'API'}...`);
+          console.log(`🎬 [VIDEO2] Trying ${apiName} API...`);
+          
+          await sock.sendMessage(jid, { 
+            text: `✅ *Found:* ${videoTitle}\n⬇️ *Getting download link...*\n⚡ Using ${apiName} API...`,
+            edit: statusMsg.key 
+          });
+          
           const result = await apiCall();
           
           if (result.success) {
             videoResult = result;
-            console.log(`✅ [VIDEO] Got link from ${result.source}: ${result.download.substring(0, 50)}...`);
+            console.log(`✅ [VIDEO2] Got link from ${result.source} (${result.quality}): ${result.download.substring(0, 50)}...`);
             break;
           }
         } catch (apiError) {
-          console.log(`⚠️ [VIDEO] API failed:`, apiError.message);
+          console.log(`⚠️ [VIDEO2] ${apiName} API failed:`, apiError.message);
           continue;
         }
       }
 
       if (!videoResult) {
         await sock.sendMessage(jid, { 
-          text: `❌ All download services failed\nPlease try again later or try different quality.`,
+          text: `❌ All download services failed!\nPlease try again later.`,
           edit: statusMsg.key 
         });
         return;
@@ -236,7 +431,7 @@ export default {
 
       // Update status
       await sock.sendMessage(jid, { 
-        text: `🔍 *Searching*: "${searchQuery}" ✅\n⬇️ *Getting download link...* ✅\n📥 *Downloading video (${quality}p)...*`,
+        text: `✅ *Found:* ${videoTitle}\n✅ *Download link ready* (${videoResult.quality})\n📥 *Downloading video...*`,
         edit: statusMsg.key 
       });
 
@@ -244,7 +439,7 @@ export default {
       const tempDir = path.join(__dirname, "../temp");
       if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
       
-      const fileName = `${Date.now()}_${videoTitle.substring(0, 30).replace(/[^\w\s.-]/gi, '')}.mp4`;
+      const fileName = `video2_${Date.now()}.mp4`;
       const tempFile = path.join(tempDir, fileName);
       
       try {
@@ -253,7 +448,7 @@ export default {
           url: videoResult.download,
           method: 'GET',
           responseType: 'stream',
-          timeout: 120000, // 2 minute timeout for videos
+          timeout: 180000, // 3 minute timeout for videos
           headers: {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
             'Referer': 'https://www.youtube.com/'
@@ -271,10 +466,10 @@ export default {
         
         response.data.on('data', (chunk) => {
           downloadedBytes += chunk.length;
-          // Log progress every 5MB
-          if (totalBytes && downloadedBytes % (5 * 1024 * 1024) < chunk.length) {
+          // Log progress every 1MB
+          if (totalBytes && downloadedBytes % (1 * 1024 * 1024) < chunk.length) {
             const percent = Math.round((downloadedBytes / totalBytes) * 100);
-            console.log(`📥 [VIDEO] Download: ${percent}% (${Math.round(downloadedBytes/1024/1024)}MB)`);
+            console.log(`📥 [VIDEO2] Download: ${percent}% (${Math.round(downloadedBytes/1024/1024)}MB)`);
           }
         });
         
@@ -290,13 +485,13 @@ export default {
         const fileSizeMB = (stats.size / (1024 * 1024)).toFixed(1);
         
         if (stats.size === 0) {
-          throw new Error("Downloaded file is empty");
+          throw new Error("Download failed or empty file!");
         }
 
         // WhatsApp video limit is ~16MB
         if (parseFloat(fileSizeMB) > 16) {
           await sock.sendMessage(jid, { 
-            text: `❌ Video too large: ${fileSizeMB}MB\nMax size: 16MB\nTry lower quality (144-480) or shorter video.`,
+            text: `❌ Video too large: ${fileSizeMB}MB\nMax size: 16MB\nTry with \`-low\` flag: \`video2 ${searchQuery} -low\``,
             edit: statusMsg.key 
           });
           
@@ -304,27 +499,28 @@ export default {
           return;
         }
 
-        // Get thumbnail if not already available
-        if (!videoThumbnail) {
-          const videoId = extractYouTubeId(videoUrl);
-          videoThumbnail = `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
-        }
+        // Send video preview message
+        await sock.sendMessage(jid, { 
+          text: `_🎥 Playing:_\n _${videoTitle}_`,
+          edit: statusMsg.key 
+        });
 
-        // Send video
+        // Send the video as VIDEO (not document)
         await sock.sendMessage(jid, {
           video: fs.readFileSync(tempFile),
-          caption: `🎬 *${videoTitle}*\n📹 ${quality}p • ${fileSizeMB}MB\n > WolfBot`,
-          fileName: `${videoTitle.substring(0, 50)}.mp4`.replace(/[^\w\s.-]/gi, ''),
+          caption: `🎬 *${videoTitle}*\n📹 ${videoResult.quality} • ${fileSizeMB}MB\n⚡ Source: ${videoResult.source}\n\n> WolfBot`,
           mimetype: 'video/mp4',
+          fileName: `${videoTitle.substring(0, 50)}.mp4`.replace(/[^\w\s.-]/gi, ''),
           contextInfo: {
             externalAdReply: {
               title: videoTitle.substring(0, 70),
-              body: `YouTube Video • ${quality}p`,
+              body: 'YouTube Video • WolfBot',
               mediaType: 2,
               thumbnailUrl: videoThumbnail,
               mediaUrl: videoUrl,
               sourceUrl: videoUrl,
-              showAdAttribution: false
+              showAdAttribution: false,
+              renderLargerThumbnail: false
             }
           }
         }, { quoted: m });
@@ -332,33 +528,24 @@ export default {
         // Clean up
         if (fs.existsSync(tempFile)) {
           fs.unlinkSync(tempFile);
-          console.log(`✅ [VIDEO] Cleaned up: ${tempFile}`);
+          console.log(`✅ [VIDEO2] Cleaned up: ${tempFile}`);
         }
 
         // Success message
-        await sock.sendMessage(jid, { 
-          text: `✅ *Video Sent!*\n\n🎬 ${videoTitle}\n📹 ${quality}p • ${fileSizeMB}MB\n⚡ Source: ${videoResult.source}`,
-          edit: statusMsg.key 
-        });
-
-        console.log(`✅ [VIDEO] Success: ${videoTitle} (${quality}p, ${fileSizeMB}MB)`);
+        console.log(`✅ [VIDEO2] Success: ${videoTitle} (${fileSizeMB}MB, ${videoResult.quality})`);
 
       } catch (downloadError) {
-        console.error("❌ [VIDEO] Download error:", downloadError);
+        console.error("❌ [VIDEO2] Download error:", downloadError);
         
-        let errorMsg = `❌ Failed to download video (${quality}p)`;
+        let errorMsg = `🚫 Error downloading video`;
         
         if (downloadError.message.includes('timeout')) {
-          errorMsg += '\n⏱ Download timed out. Try lower quality.';
+          errorMsg = `⏱ Download timed out. Video might be too long.`;
         } else if (downloadError.message.includes('ENOTFOUND') || downloadError.message.includes('ECONNREFUSED')) {
-          errorMsg += '\n🌐 Network error. Check your connection.';
-        } else if (downloadError.response?.status === 403) {
-          errorMsg += '\n🔒 Access denied. Video might be restricted.';
+          errorMsg = `🌐 Network error. Check your connection.`;
         } else if (downloadError.message.includes('file is empty')) {
-          errorMsg += '\n📦 Downloaded file is empty. Try different quality.';
+          errorMsg = `📦 Download failed. Try again.`;
         }
-        
-        errorMsg += `\n\n*Tip:* Try lower quality (144, 240, 360) for faster download.`;
         
         await sock.sendMessage(jid, { 
           text: errorMsg,
@@ -368,16 +555,17 @@ export default {
         // Clean up on error
         if (fs.existsSync(tempFile)) {
           fs.unlinkSync(tempFile);
-          console.log(`🧹 [VIDEO] Cleaned up failed: ${tempFile}`);
+          console.log(`🧹 [VIDEO2] Cleaned up failed: ${tempFile}`);
         }
       }
 
     } catch (error) {
-      console.error("❌ [VIDEO] Fatal error:", error);
+      console.error("❌ [VIDEO2] Fatal error:", error);
       
       await sock.sendMessage(jid, { 
-        text: `❌ An error occurred\n💡 Try:\n1. Lower quality (144-480)\n2. Shorter video\n3. Direct YouTube link\n4. Try again later\n\nError: ${error.message.substring(0, 100)}`
-      }, { quoted: m });
+        text: `🚫 Error: ${error.message}`,
+        quoted: m 
+      });
     }
-  },
+  }
 };

@@ -267,12 +267,7 @@ export default {
         { key: 'ram', label: '🎚️ RAM' }
       ];
       
-      const hardwareFields = [
-        { key: 'cores', label: '🚀 Cores' },
-        { key: 'cputype', label: '🔧 CPU Type' },
-        { key: 'node', label: '🟢 Node' }
-      ];
-      
+    
       const platformFields = [
         { key: 'host', label: '🏠 Host' },
         { key: 'panel', label: '🌀 Panel' }

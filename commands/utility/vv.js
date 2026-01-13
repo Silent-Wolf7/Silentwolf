@@ -652,3 +652,25 @@ console.log('📥 View-Once Downloader (VV) module loaded');
 console.log(`📁 Temporary storage: ${path.resolve(CONFIG.SAVE_DIR)}`);
 console.log(`📝 Default caption: "${CONFIG.DEFAULT_CAPTION}"`);
 console.log(`🧹 Auto-cleanup: ${CONFIG.AUTO_CLEANUP ? 'Enabled' : 'Disabled'}`);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
