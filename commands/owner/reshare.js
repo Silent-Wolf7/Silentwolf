@@ -1,7 +1,6 @@
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
-import axios from "axios";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -64,12 +63,6 @@ export default {
 
       // Get the quoted message
       const quotedMsg = m.message.extendedTextMessage.contextInfo;
-      const quotedMsgId = quotedMsg.stanzaId;
-      const quotedFrom = quotedMsg.participant || quotedMsg.remoteJid;
-      
-      console.log(`📤 [RESHARE] Quoted message ID: ${quotedMsgId} from: ${quotedFrom}`);
-
-      // Check what type of message we're resharing
       const quotedContent = quotedMsg.quotedMessage;
       
       if (!quotedContent) {
@@ -108,10 +101,6 @@ export default {
 
         // Now edit the original "reshare" command message to just the emoji
         try {
-          // Try to edit the user's original message (if bot has permission)
-          // This part is tricky because we can't directly edit user's messages
-          // Instead, we'll send a reaction to their message
-          
           // Send reaction to the original message
           await sock.sendMessage(jid, {
             react: {
@@ -165,12 +154,7 @@ async function reshareImageStatus(sock, jid, imageMessage, emoji, statusMsg) {
   
   try {
     // Download image
-    const buffer = await downloadMediaMessage(
-      { message: { imageMessage } },
-      "buffer",
-      {},
-      { logger: console, reuploadRequest: sock.updateMediaMessage }
-    );
+    const buffer = await downloadMediaMessage(sock, { message: { imageMessage } });
     
     fs.writeFileSync(tempFile, buffer);
     
@@ -183,7 +167,7 @@ async function reshareImageStatus(sock, jid, imageMessage, emoji, statusMsg) {
       caption: caption,
       mimetype: 'image/jpeg',
       contextInfo: {
-        forwardingScore: 999, // Makes it look like a forwarded message
+        forwardingScore: 999,
         isForwarded: true
       }
     });
@@ -206,12 +190,7 @@ async function reshareVideoStatus(sock, jid, videoMessage, emoji, statusMsg) {
   
   try {
     // Download video
-    const buffer = await downloadMediaMessage(
-      { message: { videoMessage } },
-      "buffer",
-      {},
-      { logger: console, reuploadRequest: sock.updateMediaMessage }
-    );
+    const buffer = await downloadMediaMessage(sock, { message: { videoMessage } });
     
     fs.writeFileSync(tempFile, buffer);
     
@@ -272,12 +251,7 @@ async function reshareDocumentStatus(sock, jid, documentMessage, emoji, statusMs
   
   try {
     // Download document
-    const buffer = await downloadMediaMessage(
-      { message: { documentMessage } },
-      "buffer",
-      {},
-      { logger: console, reuploadRequest: sock.updateMediaMessage }
-    );
+    const buffer = await downloadMediaMessage(sock, { message: { documentMessage } });
     
     fs.writeFileSync(tempFile, buffer);
     
@@ -304,22 +278,28 @@ async function reshareDocumentStatus(sock, jid, documentMessage, emoji, statusMs
   }
 }
 
-// Helper function to download media (you might need to adjust based on your library)
-async function downloadMediaMessage(message, type, options = {}, more = {}) {
-  const { mediaType, buffer } = await sock.downloadAndSaveMediaMessage(message, options);
-  return buffer;
-}
-
-// Alternative approach using direct buffer download
-async function downloadMessageMedia(message) {
+// Helper function to download media
+async function downloadMediaMessage(sock, message) {
   try {
-    // This is a simplified version - you'll need to adjust based on your WhatsApp library
-    const stream = await sock.downloadMediaMessage(message);
-    const chunks = [];
-    for await (const chunk of stream) {
-      chunks.push(chunk);
+    // First try the modern way (for baileys)
+    if (sock.downloadAndSaveMediaMessage) {
+      const { buffer } = await sock.downloadAndSaveMediaMessage(message, {});
+      return buffer;
     }
-    return Buffer.concat(chunks);
+    
+    // Fallback method for older versions
+    if (sock.downloadMediaMessage) {
+      const stream = await sock.downloadMediaMessage(message);
+      const chunks = [];
+      for await (const chunk of stream) {
+        chunks.push(chunk);
+      }
+      return Buffer.concat(chunks);
+    }
+    
+    // Alternative: if the library provides message as a buffer directly
+    throw new Error("No download method available on sock object");
+    
   } catch (error) {
     console.error("Download error:", error);
     throw error;

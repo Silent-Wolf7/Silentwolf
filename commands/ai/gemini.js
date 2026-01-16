@@ -1,533 +1,819 @@
-// commands/ai/gemini.js
-import fetch from "node-fetch";
+// import axios from 'axios';
 
-export default {
-  name: "gemini",
-  alias: ["google", "bard", "goog", "wolfgem", "gg"],
-  desc: "Use Google's Gemini AI via OpenRouter 🌀🤖",
-  category: "AI",
-  usage: ".gemini <your question>",
-  cooldown: 2,
-
-  async execute(sock, m, args) {
-    const jid = m.key.remoteJid;
-    const query = args.join(" ").trim();
-
-    try {
-      // Help message
-      if (!query || query === 'help') {
-        return sock.sendMessage(jid, {
-          text: `🌀 *WolfBot Gemini AI* 🤖\n\n` +
-                `*Powered by Google Gemini via OpenRouter*\n\n` +
-                `*Usage:* .gemini <question>\n\n` +
-                `*Examples:*\n` +
-                `• .gemini Explain quantum computing\n` +
-                `• .gemini Write Python code for sorting\n` +
-                `• .gemini Create a business plan\n\n` +
-                `*Gemini Models Available:*\n` +
-                `• gemini-pro-1.5 (default)\n` +
-                `• gemini-flash-1.5 (fast)\n` +
-                `• gemma-2-27b (coding)\n\n` +
-                `*Features:*\n` +
-                `• 1M token context\n` +
-                `• Multimodal capable\n` +
-                `• Free via OpenRouter\n` +
-                `• WolfBot enhanced 🐺\n\n` +
-                `💰 *Cost:* ~$0.875/1M input tokens`
-        }, { quoted: m });
-      }
-
-      // Check for model flag
-      let model = "google/gemini-pro-1.5"; // Default
-      let cleanQuery = query;
+// export default {
+//   name: 'gemini',
+//   description: 'Google Gemini AI - Advanced multimodal AI by Google',
+//   category: 'ai',
+//   aliases: ['geminiai', 'googleai', 'googlegemini', 'gai', 'gem', 'dualai', 'multimodal'],
+//   usage: 'gemini [question, text, or describe image]',
+  
+//   async execute(sock, m, args, PREFIX, extra) {
+//     const jid = m.key.remoteJid;
+//     const senderJid = m.key.participant || jid;
+    
+//     // ====== HELP SECTION ======
+//     if (args.length === 0 || args[0].toLowerCase() === 'help') {
+//       const helpText = `🤖 *GOOGLE GEMINI AI*\n` +
+//         `⚡ *Google\'s Most Advanced Multimodal AI*\n` +
+//         `💡 *Usage:*\n` +
+//         `• \`${PREFIX}gemini your question\`\n` +
+//         `• \`${PREFIX}geminiai hello\`\n` +
+//         `• \`${PREFIX}googleai explain with images\`\n` +
+//         ``;
       
-      const modelFlags = {
-        '--flash': 'google/gemini-flash-1.5',
-        '--fast': 'google/gemini-flash-1.5',
-        '--gemma': 'google/gemma-2-27b-it',
-        '--gemma2': 'google/gemma-2-9b-it',
-        '--vision': 'google/gemini-pro-vision' // For images
-      };
+//       return sock.sendMessage(jid, { text: helpText }, { quoted: m });
+//     }
+
+//     // ====== SPECIAL COMMANDS ======
+//     const specialCommands = {
+//       'image': 'image',
+//       'describe': 'image',
+//       'analyze': 'image',
+//       'visual': 'visual',
+//       'picture': 'visual',
+//       'photo': 'visual',
+//       'code': 'code',
+//       'program': 'code',
+//       'debug': 'debug',
+//       'fix': 'debug',
+//       'creative': 'creative',
+//       'write': 'creative',
+//       'story': 'creative',
+//       'poem': 'creative',
+//       'explain': 'explain',
+//       'detailed': 'explain',
+//       'technical': 'technical',
+//       'science': 'science',
+//       'math': 'math',
+//       'calculate': 'math',
+//       'translate': 'translate',
+//       'multilingual': 'translate',
+//       'summary': 'summary',
+//       'summarize': 'summary',
+//       'compare': 'compare',
+//       'analysis': 'analysis',
+//       'research': 'research'
+//     };
+
+//     let query = args.join(' ');
+//     let mode = 'general';
+//     let enhancedPrompt = '';
+
+//     // Check for special command modes
+//     const firstWord = args[0].toLowerCase();
+//     if (specialCommands[firstWord]) {
+//       mode = specialCommands[firstWord];
+//       query = args.slice(1).join(' ');
       
-      for (const [flag, modelId] of Object.entries(modelFlags)) {
-        if (query.includes(flag)) {
-          model = modelId;
-          cleanQuery = query.replace(flag, '').trim();
-          break;
-        }
-      }
+//       switch(mode) {
+//         case 'image':
+//         case 'visual':
+//           enhancedPrompt = `Analyze/describe visual content: ${query}`;
+//           break;
+//         case 'code':
+//           enhancedPrompt = `Generate optimized code with explanations: ${query}`;
+//           break;
+//         case 'debug':
+//           enhancedPrompt = `Debug and fix errors in: ${query}`;
+//           break;
+//         case 'creative':
+//           enhancedPrompt = `Create engaging creative content: ${query}`;
+//           break;
+//         case 'explain':
+//           enhancedPrompt = `Explain in detail with examples: ${query}`;
+//           break;
+//         case 'technical':
+//         case 'science':
+//           enhancedPrompt = `Provide technical/scientific explanation: ${query}`;
+//           break;
+//         case 'math':
+//           enhancedPrompt = `Solve mathematical problem with steps: ${query}`;
+//           break;
+//         case 'translate':
+//           enhancedPrompt = `Translate accurately: ${query}`;
+//           break;
+//         case 'summary':
+//           enhancedPrompt = `Summarize concisely: ${query}`;
+//           break;
+//         case 'compare':
+//           enhancedPrompt = `Compare and contrast: ${query}`;
+//           break;
+//         case 'analysis':
+//           enhancedPrompt = `Provide detailed analysis: ${query}`;
+//           break;
+//         case 'research':
+//           enhancedPrompt = `Research and present findings: ${query}`;
+//           break;
+//       }
+//     } else {
+//       enhancedPrompt = query;
+//     }
 
-      // Check for image attachment
-      let imageData = null;
-      const quoted = m.message?.extendedTextMessage?.contextInfo?.quotedMessage;
+//     // Check for image message (Gemini is multimodal)
+//     const hasImage = m.message?.imageMessage;
+//     const hasQuotedImage = m.message?.extendedTextMessage?.contextInfo?.quotedMessage?.imageMessage;
+
+//     if (hasImage || hasQuotedImage) {
+//       mode = 'image';
+//       enhancedPrompt = `Analyze this image: ${query || 'Describe what you see'}`;
+//     }
+
+//     try {
+//       // ====== PROCESSING MESSAGE ======
+//       const processingText = hasImage || hasQuotedImage 
+//         ? `🖼️ *GEMINI AI (Multimodal)*\n\n🚀 *Processing image with Gemini...*`
+//         : `⚡ *GOOGLE GEMINI*\n\n🚀 *Initializing Gemini AI...*\n\n📝 "${query.substring(0, 50)}${query.length > 50 ? '...' : ''}"`;
       
-      if (quoted?.imageMessage && model.includes('vision')) {
-        imageData = await downloadImage(sock, quoted);
-      }
+//       const statusMsg = await sock.sendMessage(jid, {
+//         text: processingText
+//       }, { quoted: m });
 
-      // Get OpenRouter API key (same as deepseek)
-      const apiKey = getOpenRouterKey();
+//       // ====== API REQUEST (Using Keith's Gemini API) ======
+//       const apiUrl = 'https://apiskeith.vercel.app/ai/gemini';
       
-      if (!apiKey || !apiKey.startsWith('sk-or-v1')) {
-        return sock.sendMessage(jid, {
-          text: `🔑 *OpenRouter API Key*\n\n` +
-                `API key not properly configured.\n\n` +
-                `*Your key:* ${apiKey ? 'Present but invalid' : 'Missing'}\n` +
-                `*Length:* ${apiKey?.length || 0} chars\n\n` +
-                `Contact bot administrator.`
-        }, { quoted: m });
-      }
+//       console.log(`🤖 Gemini Query [${mode}]: ${query}`);
+//       console.log(`🎨 Has Image: ${hasImage || hasQuotedImage}`);
+      
+//       const response = await axios({
+//         method: 'GET',
+//         url: apiUrl,
+//         params: {
+//           q: enhancedPrompt || query
+//         },
+//         timeout: 35000, // 35 seconds for advanced AI
+//         headers: {
+//           'User-Agent': 'WolfBot-Gemini/1.0 (Multimodal-AI)',
+//           'Accept': 'application/json',
+//           'X-Requested-With': 'WolfBot',
+//           'Referer': 'https://apiskeith.vercel.app/',
+//           'Origin': 'https://apiskeith.vercel.app',
+//           'Cache-Control': 'no-cache'
+//         },
+//         validateStatus: function (status) {
+//           return status >= 200 && status < 500;
+//         }
+//       });
 
-      // Send processing message
-      const processingMsg = await sock.sendMessage(jid, {
-        text: `🌀 *Gemini is thinking...*\n\n` +
-              `*Model:* ${model.split('/')[1]}\n` +
-              `*Via:* OpenRouter`
-      }, { quoted: m });
+//       console.log(`✅ Gemini Response status: ${response.status}`);
+      
+//       // ====== UPDATE STATUS ======
+//       const updateText = hasImage || hasQuotedImage
+//         ? `⚡ *GEMINI AI*\n🖼️ *Processing image...* ✅\n🧠 *Analyzing visual content...*\n⚡ *Generating multimodal response...*`
+//         : `⚡ *GOOGLE GEMINI*\n🚀 *Initializing...* ✅\n🧠 *Processing with Gemini AI...*\n⚡ *Generating advanced response...*`;
+      
+//       await sock.sendMessage(jid, {
+//         text: updateText,
+//         edit: statusMsg.key
+//       });
 
-      // Call OpenRouter API for Gemini
-      let result;
-      if (imageData) {
-        result = await callOpenRouterVision(cleanQuery, imageData, apiKey, model);
-      } else {
-        result = await callOpenRouterGemini(cleanQuery, apiKey, model);
-      }
-
-      if (!result.success) {
-        let errorMsg = result.error;
-        let suggestion = "Try rephrasing your question";
+//       // ====== PARSE RESPONSE ======
+//       let aiResponse = '';
+//       let metadata = {
+//         creator: 'Google AI',
+//         model: 'Gemini Pro',
+//         multimodal: (hasImage || hasQuotedImage),
+//         status: true,
+//         source: 'Keith API'
+//       };
+      
+//       // Parse Keith API response format
+//       if (response.data && typeof response.data === 'object') {
+//         const data = response.data;
         
-        if (errorMsg.includes("rate") || errorMsg.includes("quota")) {
-          suggestion = "Wait a minute and try again";
-        } else if (errorMsg.includes("key") || errorMsg.includes("auth")) {
-          suggestion = "Contact bot administrator";
-        } else if (errorMsg.includes("vision") && !imageData) {
-          suggestion = "Use --vision flag with an image";
-        }
+//         console.log('📊 Gemini API Response structure:', Object.keys(data));
         
-        return sock.sendMessage(jid, {
-          text: `❌ *Gemini Error*\n\n` +
-                `*Error:* ${errorMsg}\n\n` +
-                `💡 *Suggestion:* ${suggestion}\n\n` +
-                `*Model:* ${model}`,
-          edit: processingMsg.key
-        });
-      }
-
-      // Format and send response
-      const geminiReply = formatGeminiResponse(
-        result.reply, 
-        cleanQuery, 
-        model,
-        result.usage,
-        imageData
-      );
-
-      await sock.sendMessage(jid, {
-        text: geminiReply,
-        edit: processingMsg.key
-      });
-
-      // Optional cost info
-      if (result.usage?.total_cost && result.usage.total_cost > 0.001) {
-        await sock.sendMessage(jid, {
-          text: `💰 *Cost:* $${result.usage.total_cost.toFixed(6)}`
-        });
-      }
-
-    } catch (err) {
-      console.error("❌ [GEMINI ERROR]:", err);
+//         // Extract based on Keith API structure
+//         if (data.status === true && data.result) {
+//           aiResponse = data.result;
+//           console.log('✅ Using data.result');
+//         } else if (data.response) {
+//           aiResponse = data.response;
+//           console.log('✅ Using data.response');
+//         } else if (data.answer) {
+//           aiResponse = data.answer;
+//           console.log('✅ Using data.answer');
+//         } else if (data.text) {
+//           aiResponse = data.text;
+//           console.log('✅ Using data.text');
+//         } else if (data.content) {
+//           aiResponse = data.content;
+//           console.log('✅ Using data.content');
+//         } else if (data.candidates && data.candidates[0] && data.candidates[0].content) {
+//           // Gemini API format
+//           aiResponse = data.candidates[0].content.parts[0]?.text || '';
+//           console.log('✅ Using Gemini candidates format');
+//         } else if (data.message) {
+//           aiResponse = data.message;
+//           console.log('✅ Using data.message');
+//         } else if (data.data) {
+//           aiResponse = data.data;
+//           console.log('✅ Using data.data');
+//         } else if (data.error) {
+//           console.log('❌ API error:', data.error);
+//           throw new Error(data.error || 'Gemini API returned error');
+//         } else {
+//           console.log('🔍 Attempting to extract text from response object');
+//           aiResponse = extractGeminiResponse(data);
+//         }
+//       } else if (typeof response.data === 'string') {
+//         console.log('✅ Response is string');
+//         aiResponse = response.data;
+//       } else {
+//         console.log('❌ Invalid response format');
+//         throw new Error('Invalid API response format');
+//       }
       
-      await sock.sendMessage(jid, {
-        text: `🌀 *Gemini Error*\n\n` +
-              `*Details:* ${err.message}\n\n` +
-              `🔧 *Try:*\n` +
-              `• .gemini --flash for faster response\n` +
-              `• Shorter questions\n` +
-              `• .ai for other models`
-      }, { quoted: m });
-    }
-  }
-};
-
-// ============================================
-// OPENROUTER API KEY (Same as DeepSeek)
-// ============================================
-
-function getOpenRouterKey() {
-  // Your OpenRouter key: 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
-  const keyParts = [
-    [115, 107, 45, 111, 114, 45, 118, 49, 45, 101, 54, 50, 53, 49, 100, 55, 50, 49, 102, 50, 51, 54, 54, 55, 98, 102, 98, 51, 97, 56, 98, 98, 97, 52, 49, 51, 51, 49, 50, 100, 53, 55, 53, 98, 57, 101, 49, 49, 55, 54, 55, 51, 100, 97, 99, 55, 50, 56, 97, 53, 54, 50, 97, 100, 57, 101, 101, 99, 48, 50, 101, 48, 52]
-  ];
-
-  // Convert character codes to string
-  const apiKey = keyParts.map(part => 
-    part.map(c => String.fromCharCode(c)).join('')
-  ).join('');
-
-  // Verify it's correct
-  if (apiKey.startsWith('sk-or-v1') && apiKey.length === 73) {
-    return apiKey;
-  }
-
-  // Alternative: Hex encoding
-  return getOpenRouterKeyHex();
-}
-
-function getOpenRouterKeyHex() {
-  const hexString = "736b2d6f722d76312d65363235316437323166323336363762666233613862626134313333313264353735623965313137363733646163373238613536326164396565633032653034";
-  let result = '';
-  for (let i = 0; i < hexString.length; i += 2) {
-    result += String.fromCharCode(parseInt(hexString.substr(i, 2), 16));
-  }
-  return result;
-}
-
-// ============================================
-// OPENROUTER API CALLS FOR GEMINI
-// ============================================
-
-async function callOpenRouterGemini(query, apiKey, model = "google/gemini-pro-1.5") {
-  try {
-    const startTime = Date.now();
-    
-    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${apiKey}`,
-        "HTTP-Referer": "https://wolfbot.com",
-        "X-Title": "WolfBot Gemini",
-        "User-Agent": "WolfBot/1.0"
-      },
-      body: JSON.stringify({
-        model: model,
-        messages: [
-          {
-            role: "system",
-            content: `You are WolfBot Gemini, powered by Google's Gemini AI via OpenRouter.
-                     You are helpful, accurate, and friendly.
-                     You can write code, explain concepts, and analyze information.
-                     Format code blocks properly. Be concise but thorough.
-                     Use emojis occasionally. Sign off as WolfBot Gemini.`
-          },
-          {
-            role: "user",
-            content: query
-          }
-        ],
-        temperature: 0.7,
-        max_tokens: 3000,
-        top_p: 0.95,
-        frequency_penalty: 0.1,
-        presence_penalty: 0.1
-      }),
-      timeout: 45000
-    });
-
-    const data = await response.json();
-    const latency = Date.now() - startTime;
-
-    if (!response.ok) {
-      console.error("OpenRouter Gemini Error:", data);
+//       // Check if response is empty
+//       if (!aiResponse || aiResponse.trim() === '') {
+//         console.log('❌ Empty response');
+//         throw new Error('Gemini returned empty response');
+//       }
       
-      let errorMessage = "API request failed";
-      const status = response.status;
+//       // Clean response
+//       aiResponse = aiResponse.trim();
+//       console.log(`📝 Response length: ${aiResponse.length} characters`);
       
-      const errorMap = {
-        400: "Invalid request format",
-        401: "Invalid OpenRouter API key",
-        402: "Payment required - credits exhausted",
-        429: "Rate limit exceeded - try again later",
-        500: "OpenRouter server error",
-        502: "Gemini provider error"
-      };
+//       // Check for error indicators
+//       const lowerResponse = aiResponse.toLowerCase();
+//       if (lowerResponse.includes('error:') || 
+//           lowerResponse.startsWith('error') ||
+//           lowerResponse.includes('failed to') ||
+//           lowerResponse.includes('unavailable') ||
+//           lowerResponse.includes('not found') ||
+//           lowerResponse.includes('rate limit')) {
+//         console.log('❌ Response contains error indicator');
+//         throw new Error(aiResponse);
+//       }
       
-      if (errorMap[status]) {
-        errorMessage = errorMap[status];
-      } else if (data.error?.message) {
-        errorMessage = data.error.message;
-      } else if (data.error) {
-        errorMessage = String(data.error);
-      }
+//       // Format response based on mode
+//       aiResponse = formatGeminiResponse(aiResponse, mode, query, hasImage || hasQuotedImage);
       
-      return {
-        success: false,
-        error: errorMessage,
-        code: status,
-        latency
-      };
-    }
+//       // Truncate if too long for WhatsApp
+//       if (aiResponse.length > 2800) {
+//         aiResponse = aiResponse.substring(0, 2800) + '\n\n... (response truncated for WhatsApp)';
+//       }
 
-    if (!data.choices || !data.choices[0]?.message?.content) {
-      return {
-        success: false,
-        error: "No response from Gemini",
-        latency,
-        details: data
-      };
-    }
+//       // ====== FORMAT FINAL MESSAGE ======
+//       let resultText = `🤖 *GOOGLE GEMINI AI*\n\n`;
+      
+//       // Mode indicator with emoji
+//       if (mode !== 'general') {
+//         const modeIcons = {
+//           'image': '🖼️',
+//           'visual': '👁️',
+//           'code': '💻',
+//           'debug': '🐛',
+//           'creative': '🎨',
+//           'explain': '📚',
+//           'technical': '🔧',
+//           'science': '🔬',
+//           'math': '🧮',
+//           'translate': '🌐',
+//           'summary': '📋',
+//           'compare': '⚖️',
+//           'analysis': '🔍',
+//           'research': '📊'
+//         };
+//         const modeDisplay = mode.charAt(0).toUpperCase() + mode.slice(1);
+//         const modeEmoji = modeIcons[mode] || '⚡';
+        
+//         // Add multimodal indicator for image mode
+//         if (mode === 'image' && (hasImage || hasQuotedImage)) {
+//           resultText += `${modeEmoji} *Mode:* MULTIMODAL (Image Analysis)\n\n`;
+//         } else {
+//           resultText += `${modeEmoji} *Mode:* ${modeDisplay.toUpperCase()}\n\n`;
+//         }
+//       } else if (hasImage || hasQuotedImage) {
+//         resultText += `🖼️ *Mode:* IMAGE ANALYSIS\n\n`;
+//       }
+      
+//       // Query display
+//       const displayQuery = query.length > 80 ? query.substring(0, 80) + '...' : query;
+//       if (query) {
+//         resultText += `🎯 *Query:* ${displayQuery}\n\n`;
+//       }
+      
+//       // Add image indicator
+//       if (hasImage || hasQuotedImage) {
+//         resultText += `📸 *Image detected and analyzed*\n\n`;
+//       }
+      
+//       // Gemini Response
+//       resultText += `✨ *Gemini Response:*\n${aiResponse}\n\n`;
+      
+//       // Footer with Gemini branding
+//       resultText += `⚡ *Powered by Google Gemini AI*\n`;
+//       //resultText += `🔗 *via Keith API*\n`;
+//       if (hasImage || hasQuotedImage) {
+//         resultText += `🎨 *Multimodal AI (Text + Image)*`;
+//       } else {
+//         resultText += `🧠 *Advanced Reasoning AI*`;
+//       }
 
-    return {
-      success: true,
-      reply: data.choices[0].message.content.trim(),
-      model: data.model || model,
-      usage: {
-        prompt_tokens: data.usage?.prompt_tokens || 0,
-        completion_tokens: data.usage?.completion_tokens || 0,
-        total_tokens: data.usage?.total_tokens || 0,
-        total_cost: data.usage?.total_cost || 0,
-        latency
-      },
-      id: data.id,
-      provider: "OpenRouter"
-    };
+//       // ====== SEND FINAL ANSWER ======
+//       console.log('📤 Sending final response to WhatsApp');
+//       await sock.sendMessage(jid, {
+//         text: resultText,
+//         edit: statusMsg.key
+//       });
 
-  } catch (error) {
-    console.error("Gemini Network Error:", error);
-    
-    return {
-      success: false,
-      error: error.message || "Network error",
-      details: error.code
-    };
-  }
-}
+//       console.log(`✅ Gemini response sent successfully`);
 
-async function callOpenRouterVision(query, imageBuffer, apiKey, model = "google/gemini-pro-vision") {
-  try {
-    const base64Image = imageBuffer.toString('base64');
-    
-    // OpenRouter expects a specific format for images
-    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${apiKey}`,
-        "HTTP-Referer": "https://wolfbot.com"
-      },
-      body: JSON.stringify({
-        model: model,
-        messages: [
-          {
-            role: "user",
-            content: [
-              { type: "text", text: query },
-              {
-                type: "image_url",
-                image_url: {
-                  url: `data:image/jpeg;base64,${base64Image}`
-                }
-              }
-            ]
-          }
-        ],
-        temperature: 0.4,
-        max_tokens: 1500
-      })
-    });
+//     } catch (error) {
+//       console.error('❌ [Google Gemini] ERROR:', error);
+//       console.error('❌ Error stack:', error.stack);
+      
+//       let errorMessage = `❌ *GOOGLE GEMINI ERROR*\n\n`;
+      
+//       // Detailed error handling
+//       if (error.code === 'ECONNREFUSED') {
+//         errorMessage += `• Gemini API server is down\n`;
+//         errorMessage += `• Google AI service unavailable\n`;
+//       } else if (error.code === 'ETIMEDOUT') {
+//         errorMessage += `• Request timed out (35s)\n`;
+//         errorMessage += `• Gemini processing complex request\n`;
+//         errorMessage += `• Try simpler query\n`;
+//       } else if (error.code === 'ENOTFOUND') {
+//         errorMessage += `• Cannot connect to Gemini API\n`;
+//         errorMessage += `• Check internet connection\n`;
+//       } else if (error.code === 'ECONNABORTED') {
+//         errorMessage += `• Connection aborted\n`;
+//         errorMessage += `• Network issue detected\n`;
+//       } else if (error.response?.status === 429) {
+//         errorMessage += `• Rate limit exceeded\n`;
+//         errorMessage += `• Too many Gemini requests\n`;
+//         errorMessage += `• Wait 2-3 minutes\n`;
+//       } else if (error.response?.status === 404) {
+//         errorMessage += `• Gemini endpoint not found\n`;
+//         errorMessage += `• API may have changed\n`;
+//       } else if (error.response?.status === 500) {
+//         errorMessage += `• Google AI internal error\n`;
+//         errorMessage += `• Service temporarily down\n`;
+//       } else if (error.response?.status === 403) {
+//         errorMessage += `• Access forbidden\n`;
+//         errorMessage += `• API key may be invalid\n`;
+//       } else if (error.response?.status === 400) {
+//         errorMessage += `• Bad request to Gemini\n`;
+//         errorMessage += `• Query may be malformed\n`;
+//       } else if (error.response?.status === 413) {
+//         errorMessage += `• Request too large\n`;
+//         errorMessage += `• Image may be too big\n`;
+//         errorMessage += `• Try smaller image\n`;
+//       } else if (error.response?.data) {
+//         // Extract API error
+//         const apiError = error.response.data;
+//         console.log('📊 API Error response:', apiError);
+        
+//         if (apiError.error) {
+//           errorMessage += `• Gemini Error: ${apiError.error}\n`;
+//         } else if (apiError.message) {
+//           errorMessage += `• Error: ${apiError.message}\n`;
+//         } else if (apiError.details) {
+//           errorMessage += `• Details: ${apiError.details}\n`;
+//         } else if (typeof apiError === 'string') {
+//           errorMessage += `• Error: ${apiError}\n`;
+//         }
+//       } else if (error.message) {
+//         errorMessage += `• Error: ${error.message}\n`;
+//       }
+      
+//       errorMessage += `\n🔧 *Troubleshooting:*\n`;
+//       errorMessage += `1. Try simpler/shorter query\n`;
+      
+//       if (hasImage || hasQuotedImage) {
+//         errorMessage += `2. Image may be too large/complex\n`;
+//         errorMessage += `3. Try text-only query\n`;
+//       } else {
+//         errorMessage += `2. Wait 1-2 minutes before retry\n`;
+//       }
+      
+//       errorMessage += `4. Check internet connection\n`;
+//       errorMessage += `5. Use other AI commands:\n`;
+//       errorMessage += `   • \`${PREFIX}bard\` - Google Bard\n`;
+//       errorMessage += `   • \`${PREFIX}gpt\` - GPT-5\n`;
+//       errorMessage += `   • \`${PREFIX}metai\` - Meta AI\n`;
+//       errorMessage += `6. Try rephrasing your question\n`;
+      
+//       // Try to send error message
+//       try {
+//         console.log('📤 Sending error message to user');
+//         await sock.sendMessage(jid, {
+//           text: errorMessage
+//         }, { quoted: m });
+//       } catch (sendError) {
+//         console.error('❌ Failed to send error message:', sendError);
+//       }
+//     }
+//   },
+// };
 
-    const data = await response.json();
+// // ====== HELPER FUNCTIONS ======
 
-    if (!response.ok) {
-      return {
-        success: false,
-        error: data.error?.message || "Vision API error"
-      };
-    }
-
-    return {
-      success: true,
-      reply: data.choices[0].message.content,
-      model: data.model,
-      isVision: true
-    };
-
-  } catch (error) {
-    return {
-      success: false,
-      error: error.message
-    };
-  }
-}
-
-// ============================================
-// HELPER FUNCTIONS
-// ============================================
-
-async function downloadImage(sock, quotedMessage) {
-  try {
-    const { downloadMediaMessage } = await import("@whiskeysockets/baileys");
-    
-    const messageObj = {
-      key: { remoteJid: "temp", id: "temp" },
-      message: { ...quotedMessage }
-    };
-    
-    return await downloadMediaMessage(
-      messageObj,
-      "buffer",
-      {},
-      { reuploadRequest: sock.updateMediaMessage }
-    );
-  } catch (error) {
-    console.error("Image download error:", error);
-    return null;
-  }
-}
-
-function formatGeminiResponse(reply, query, model, usage = {}, hasImage = false) {
-  const modelName = model.split('/')[1] || model;
-  const imageNote = hasImage ? "📸 *Vision Analysis Enabled*\n" : "";
+// // Extract text from Gemini API response
+// function extractGeminiResponse(obj, depth = 0) {
+//   if (depth > 3) return 'Response structure too complex';
   
-  // Format code blocks for WhatsApp
-  const formattedReply = reply.replace(/```(\w+)?\n([\s\S]*?)```/g, (match, lang, code) => {
-    const language = lang ? ` (${lang})` : '';
-    return `📝 *Code${language}:*\n${code}\n`;
-  });
-
-  const tokenInfo = usage.total_tokens ? 
-    `📊 *Tokens:* ${usage.prompt_tokens || '?'} + ${usage.completion_tokens || '?'} = ${usage.total_tokens}` : '';
+//   // If it's a string, return it
+//   if (typeof obj === 'string') {
+//     return obj;
+//   }
   
-  const costInfo = usage.total_cost ? 
-    `💰 *Cost:* $${usage.total_cost.toFixed(6)}` : '';
+//   // If array, process each item
+//   if (Array.isArray(obj)) {
+//     const texts = obj.map(item => extractGeminiResponse(item, depth + 1))
+//                      .filter(text => text && text.trim());
+//     return texts.join('\n');
+//   }
   
-  const latencyInfo = usage.latency ? 
-    `⏱️ *Latency:* ${usage.latency}ms` : '';
+//   // If object, look for common response fields
+//   if (obj && typeof obj === 'object') {
+//     // Priority fields for Gemini
+//     const priorityFields = [
+//       'text', 'content', 'result', 'response', 'answer',
+//       'message', 'output', 'candidates', 'parts'
+//     ];
+    
+//     // Check for Gemini-specific structure
+//     if (obj.candidates && Array.isArray(obj.candidates)) {
+//       const candidate = obj.candidates[0];
+//       if (candidate && candidate.content && candidate.content.parts) {
+//         const parts = candidate.content.parts.map(part => part.text).filter(Boolean);
+//         if (parts.length > 0) {
+//           return parts.join('\n');
+//         }
+//       }
+//     }
+    
+//     // Check standard fields
+//     for (const field of priorityFields) {
+//       if (obj[field]) {
+//         const extracted = extractGeminiResponse(obj[field], depth + 1);
+//         if (extracted && extracted.trim()) {
+//           return extracted;
+//         }
+//       }
+//     }
+    
+//     // Try to extract from any string property
+//     for (const key in obj) {
+//       if (typeof obj[key] === 'string' && obj[key].trim()) {
+//         return obj[key];
+//       }
+//     }
+    
+//     // Try to stringify the object
+//     try {
+//       const stringified = JSON.stringify(obj, null, 2);
+//       if (stringified.length < 1500) {
+//         return stringified;
+//       }
+//     } catch (e) {
+//       // Ignore stringify errors
+//     }
+//   }
+  
+//   return 'Could not extract response from Gemini API';
+// }
 
-  return `🌀 *WolfBot Gemini* 🤖
-━━━━━━━━━━━━━━━━
+// // Format Gemini response based on mode
+// function formatGeminiResponse(text, mode, originalQuery, hasImage = false) {
+//   if (!text) return 'No response received from Google Gemini';
+  
+//   // Clean up
+//   text = text.trim();
+  
+//   // Remove excessive markdown
+//   text = cleanGeminiResponse(text);
+  
+//   // Special formatting based on mode
+//   switch(mode) {
+//     case 'image':
+//     case 'visual':
+//       text = formatImageAnalysisResponse(text, hasImage);
+//       break;
+//     case 'code':
+//       text = formatCodeResponse(text);
+//       break;
+//     case 'debug':
+//       text = formatDebugResponse(text);
+//       break;
+//     case 'creative':
+//       text = formatCreativeResponse(text);
+//       break;
+//     case 'explain':
+//     case 'technical':
+//     case 'science':
+//       text = formatTechnicalResponse(text, mode);
+//       break;
+//     case 'math':
+//       text = formatMathResponse(text);
+//       break;
+//     case 'translate':
+//       text = formatTranslationResponse(text);
+//       break;
+//     case 'summary':
+//       text = formatSummaryResponse(text);
+//       break;
+//     case 'compare':
+//       text = formatCompareResponse(text);
+//       break;
+//     case 'analysis':
+//     case 'research':
+//       text = formatAnalysisResponse(text);
+//       break;
+//     default:
+//       text = formatGeneralResponse(text, hasImage);
+//   }
+  
+//   // Ensure proper spacing for WhatsApp
+//   text = text.replace(/\n\s*\n\s*\n/g, '\n\n');
+  
+//   return text;
+// }
 
-${imageNote}*Model:* ${modelName}
-*Via:* OpenRouter
+// // Clean Gemini response
+// function cleanGeminiResponse(text) {
+//   // Remove citation markers
+//   text = text.replace(/\[\d+\]/g, '');
+//   text = text.replace(/^\*\*Gemini:\*\*/gmi, '');
+//   text = text.replace(/^\*\*Response:\*\*/gmi, '');
+  
+//   // Clean markdown but preserve structure
+//   text = text.replace(/\*\*(.*?)\*\*/g, '*$1*');
+  
+//   // Remove excessive whitespace
+//   text = text.replace(/\s+/g, ' ');
+//   text = text.replace(/\n\s+/g, '\n');
+  
+//   return text;
+// }
 
-🗨️ *Query:*
-${query.length > 100 ? query.substring(0, 100) + '...' : query}
+// // Format image analysis responses
+// function formatImageAnalysisResponse(text, hasImage) {
+//   if (!text.startsWith('🖼️') && !text.startsWith('👁️')) {
+//     if (hasImage) {
+//       text = `🖼️ *Image Analysis:*\n${text}`;
+//     } else {
+//       text = `👁️ *Visual Description:*\n${text}`;
+//     }
+//   }
+  
+//   // Add structure for detailed analysis
+//   if (text.length > 200) {
+//     const lines = text.split('\n');
+//     if (lines.length > 5) {
+//       const structuredLines = lines.map((line, index) => {
+//         const trimmed = line.trim();
+//         if (index === 0) return `📸 ${trimmed}`;
+//         if (trimmed.toLowerCase().includes('contains') || trimmed.toLowerCase().includes('shows')) {
+//           return `🔍 ${trimmed}`;
+//         }
+//         if (trimmed.includes(':')) {
+//           return `• ${trimmed}`;
+//         }
+//         return trimmed;
+//       });
+//       text = structuredLines.join('\n');
+//     }
+//   }
+  
+//   return text;
+// }
 
-━━━━━━━━━━━━━━━━
+// // Format code responses
+// function formatCodeResponse(text) {
+//   // Check for code blocks
+//   if (!text.includes('```')) {
+//     // Add code blocks if looks like code
+//     if (isCodeLike(text)) {
+//       const language = detectProgrammingLanguage(text);
+//       text = `💻 *${language.toUpperCase()} Code:*\n\`\`\`${language}\n${text}\n\`\`\``;
+//     }
+//   } else {
+//     // Format existing code blocks
+//     text = text.replace(/```(\w*)\n([\s\S]*?)```/g, (match, lang, code) => {
+//       const language = lang || detectProgrammingLanguage(code);
+//       return `💻 *${language.toUpperCase()} Code:*\n\`\`\`${language}\n${code.trim()}\n\`\`\``;
+//     });
+//   }
+  
+//   return text;
+// }
 
-💭 *Response:*
-${formattedReply.substring(0, 3500)}
+// // Format debug responses
+// function formatDebugResponse(text) {
+//   // Add bug emoji and structure
+//   if (!text.startsWith('🐛')) {
+//     text = `🐛 *Debug Report:*\n${text}`;
+//   }
+  
+//   // Format error/solution sections
+//   const sections = text.split(/(error:|solution:|fix:|issue:)/gi);
+//   if (sections.length > 1) {
+//     let formatted = '';
+//     for (let i = 0; i < sections.length; i++) {
+//       const section = sections[i].trim();
+//       if (section.match(/error:/i)) {
+//         formatted += `❌ *Error Found:*\n`;
+//       } else if (section.match(/solution:|fix:/i)) {
+//         formatted += `✅ *Solution:*\n`;
+//       } else if (section.match(/issue:/i)) {
+//         formatted += `⚠️ *Issue:*\n`;
+//       } else if (section) {
+//         formatted += `${section}\n`;
+//       }
+//     }
+//     text = formatted.trim();
+//   }
+  
+//   return text;
+// }
 
-━━━━━━━━━━━━━━━━
-${tokenInfo}
-${costInfo}
-${latencyInfo}
-🌐 *Context:* 1M+ tokens
-🐺 *WolfBot AI Suite*`;
-}
+// // Format creative responses
+// function formatCreativeResponse(text) {
+//   if (!text.startsWith('🎨')) {
+//     text = `🎨 *Creative Content:*\n${text}`;
+//   }
+  
+//   // Add artistic formatting for poems/stories
+//   if (text.toLowerCase().includes('poem') || text.split('\n').some(line => line.trim().match(/^[A-Z][a-z]*\s+[A-Z][a-z]*$/))) {
+//     text = text.replace(/\n/g, '\n    ');
+//   }
+  
+//   return text;
+// }
 
-// ============================================
-// UTILITY FUNCTIONS
-// ============================================
+// // Format technical/scientific responses
+// function formatTechnicalResponse(text, mode) {
+//   const icons = {
+//     'explain': '📚',
+//     'technical': '🔧',
+//     'science': '🔬'
+//   };
+  
+//   const icon = icons[mode] || '📚';
+//   if (!text.startsWith(icon)) {
+//     text = `${icon} *${mode.toUpperCase()}:*\n${text}`;
+//   }
+  
+//   // Add structure for technical explanations
+//   const lines = text.split('\n');
+//   if (lines.length > 4) {
+//     const structuredLines = lines.map((line, index) => {
+//       const trimmed = line.trim();
+//       if (index === 0) return trimmed;
+//       if (trimmed.match(/^\d+[\.\)]/) || trimmed.toLowerCase().startsWith('step')) {
+//         return `📌 ${trimmed}`;
+//       }
+//       if (trimmed.includes(':')) {
+//         return `• ${trimmed}`;
+//       }
+//       return trimmed;
+//     });
+//     text = structuredLines.join('\n');
+//   }
+  
+//   return text;
+// }
 
-export const geminiUtils = {
-  // Text chat
-  chat: async (prompt, options = {}) => {
-    const apiKey = getOpenRouterKey();
-    const model = options.model || "google/gemini-pro-1.5";
-    return await callOpenRouterGemini(prompt, apiKey, model);
-  },
+// // Format math responses
+// function formatMathResponse(text) {
+//   if (!text.startsWith('🧮')) {
+//     text = `🧮 *Mathematical Solution:*\n${text}`;
+//   }
+  
+//   // Highlight final answer
+//   const answerMatch = text.match(/(?:answer|result|solution|equals?)[:\s]*([^.\n]+)/i);
+//   if (answerMatch) {
+//     const answer = answerMatch[1].trim();
+//     text = text.replace(answerMatch[0], `✅ *Answer:* ${answer}`);
+//   }
+  
+//   return text;
+// }
 
-  // Vision with images
-  vision: async (prompt, imageBuffer, options = {}) => {
-    const apiKey = getOpenRouterKey();
-    const model = options.model || "google/gemini-pro-vision";
-    return await callOpenRouterVision(prompt, imageBuffer, apiKey, model);
-  },
+// // Format translation responses
+// function formatTranslationResponse(text) {
+//   if (!text.startsWith('🌐')) {
+//     text = `🌐 *Translation:*\n${text}`;
+//   }
+  
+//   return text;
+// }
 
-  // Available Google models on OpenRouter
-  listModels: () => {
-    return [
-      {
-        id: "google/gemini-pro-1.5",
-        name: "Gemini Pro 1.5",
-        description: "Best overall Google model",
-        context: "1M+ tokens",
-        cost: "$0.875/$2.625 per 1M tokens"
-      },
-      {
-        id: "google/gemini-flash-1.5",
-        name: "Gemini Flash 1.5",
-        description: "Fast and efficient",
-        context: "1M+ tokens",
-        cost: "$0.075/$0.30 per 1M tokens"
-      },
-      {
-        id: "google/gemma-2-27b-it",
-        name: "Gemma 2 27B",
-        description: "Google's open model",
-        context: "8K tokens",
-        cost: "$0.80/$4.00 per 1M tokens"
-      },
-      {
-        id: "google/gemini-pro-vision",
-        name: "Gemini Pro Vision",
-        description: "Multimodal with images",
-        context: "128K tokens",
-        cost: "$0.875/$2.625 per 1M tokens"
-      }
-    ];
-  },
+// // Format summary responses
+// function formatSummaryResponse(text) {
+//   if (!text.startsWith('📋')) {
+//     text = `📋 *Summary:*\n${text}`;
+//   }
+  
+//   // Ensure conciseness
+//   const wordCount = text.split(' ').length;
+//   if (wordCount > 150) {
+//     const sentences = text.split(/[.!?]+/);
+//     if (sentences.length > 4) {
+//       text = sentences.slice(0, 4).join('.') + '.';
+//     }
+//   }
+  
+//   return text;
+// }
 
-  // API status
-  getApiStatus: () => {
-    const key = getOpenRouterKey();
-    return {
-      configured: key && key.startsWith('sk-or-v1'),
-      length: key?.length || 0,
-      valid: key?.length === 73,
-      provider: "OpenRouter",
-      modelsAvailable: 4
-    };
-  },
+// // Format comparison responses
+// function formatCompareResponse(text) {
+//   if (!text.startsWith('⚖️')) {
+//     text = `⚖️ *Comparison:*\n${text}`;
+//   }
+  
+//   // Add structure for pros/cons
+//   text = text.replace(/pros:/gi, '✅ *Pros:*');
+//   text = text.replace(/cons:/gi, '❌ *Cons:*');
+//   text = text.replace(/advantages:/gi, '👍 *Advantages:*');
+//   text = text.replace(/disadvantages:/gi, '👎 *Disadvantages:*');
+  
+//   return text;
+// }
 
-  // Test connection
-  testConnection: async () => {
-    try {
-      const apiKey = getOpenRouterKey();
-      const result = await callOpenRouterGemini("Say 'Gemini via OpenRouter is working'", apiKey);
-      
-      return {
-        success: result.success,
-        message: result.success ? 'Gemini via OpenRouter is working' : result.error,
-        latency: result.usage?.latency || 0,
-        cost: result.usage?.total_cost || 0,
-        model: result.model
-      };
-    } catch (error) {
-      return {
-        success: false,
-        message: error.message
-      };
-    }
-  },
+// // Format analysis responses
+// function formatAnalysisResponse(text) {
+//   if (!text.startsWith('🔍')) {
+//     text = `🔍 *Analysis:*\n${text}`;
+//   }
+  
+//   // Add structure
+//   const sections = text.split(/(conclusion:|findings:|recommendation:|insights?:)/gi);
+//   if (sections.length > 1) {
+//     let formatted = '';
+//     for (let i = 0; i < sections.length; i++) {
+//       const section = sections[i].trim();
+//       if (section.match(/conclusion:/i)) {
+//         formatted += `📌 *Conclusion:*\n`;
+//       } else if (section.match(/findings:/i)) {
+//         formatted += `📊 *Findings:*\n`;
+//       } else if (section.match(/recommendation:/i)) {
+//         formatted += `💡 *Recommendation:*\n`;
+//       } else if (section.match(/insights?:/i)) {
+//         formatted += `🎯 *Insights:*\n`;
+//       } else if (section) {
+//         formatted += `${section}\n`;
+//       }
+//     }
+//     text = formatted.trim();
+//   }
+  
+//   return text;
+// }
 
-  // Compare models
-  compareModels: () => {
-    return {
-      "gemini-pro-1.5": { speed: "Medium", quality: "High", cost: "$$" },
-      "gemini-flash-1.5": { speed: "Fast", quality: "Medium", cost: "$" },
-      "gemma-2-27b": { speed: "Fast", quality: "Good", cost: "$$" }
-    };
-  }
-};
+// // Format general responses
+// function formatGeneralResponse(text, hasImage = false) {
+//   // Add Gemini branding
+//   if (!text.startsWith('🤖') && !text.startsWith('✨') && !text.startsWith('⚡')) {
+//     if (hasImage) {
+//       text = `✨ *Gemini (Multimodal):*\n${text}`;
+//     } else {
+//       text = `✨ *Gemini says:*\n${text}`;
+//     }
+//   }
+  
+//   return text;
+// }
 
-// Model pricing information
-export const GEMINI_PRICING = {
-  "google/gemini-pro-1.5": {
-    input: 0.000875,  // $ per 1K tokens input
-    output: 0.002625, // $ per 1K tokens output
-    context: 1000000  // 1M tokens
-  },
-  "google/gemini-flash-1.5": {
-    input: 0.000075,
-    output: 0.00030,
-    context: 1000000
-  },
-  "google/gemma-2-27b-it": {
-    input: 0.00080,
-    output: 0.00400,
-    context: 8192
-  }
-};
+// // Detect if text is code-like
+// function isCodeLike(text) {
+//   const codePatterns = [
+//     /function\s+\w+\s*\(/i,
+//     /def\s+\w+\s*\(/i,
+//     /class\s+\w+/i,
+//     /import\s+|export\s+/i,
+//     /const\s+|let\s+|var\s+/i,
+//     /console\.|print\(|System\./i,
+//     /if\s*\(|for\s*\(|while\s*\(/i,
+//     /return\s+/i,
+//     /<\?php|<\/?[a-z][^>]*>/i
+//   ];
+  
+//   let score = 0;
+//   for (const pattern of codePatterns) {
+//     if (pattern.test(text)) {
+//       score++;
+//       if (score >= 2) return true;
+//     }
+//   }
+  
+//   return false;
+// }
+
+// // Detect programming language
+// function detectProgrammingLanguage(text) {
+//   const lowerText = text.toLowerCase();
+  
+//   if (lowerText.includes('def ') && lowerText.includes('print(')) return 'python';
+//   if (lowerText.includes('function') && lowerText.includes('console.')) return 'javascript';
+//   if (lowerText.includes('public class') || lowerText.includes('System.')) return 'java';
+//   if (lowerText.includes('#include') || lowerText.includes('std::')) return 'cpp';
+//   if (lowerText.includes('<?php')) return 'php';
+//   if (lowerText.includes('<html') || lowerText.includes('<div')) return 'html';
+//   if (lowerText.includes('SELECT') || lowerText.includes('FROM')) return 'sql';
+  
+//   return 'code';
+// }
