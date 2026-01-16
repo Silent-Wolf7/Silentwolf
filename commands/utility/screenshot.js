@@ -17,9 +17,9 @@ export default {
         `⚡ *Capture any website as an image*\n` +
         `💡 *Usage:*\n` +
         `• \`${PREFIX}screenshot https://website.com\`\n` +
-        `• \`${PREFIX}ss google.com\`\n` +
-        `• \`${PREFIX}webshot example.com\`\n` +
-       ``;
+        `• \`${PREFIX}screenshot google.com\`\n` +
+        `• \`${PREFIX}screenshot example.com\`\n\n` +
+     ``;
       
       return sock.sendMessage(jid, { text: helpText }, { quoted: m });
     }
@@ -47,170 +47,232 @@ export default {
       }, { quoted: m });
     }
 
+    // Extract domain for display
+    let domain = '';
+    try {
+      domain = new URL(url).hostname.replace('www.', '');
+    } catch {
+      domain = url;
+    }
+
     try {
       // ====== PROCESSING MESSAGE ======
       const statusMsg = await sock.sendMessage(jid, {
         text: `📸 *WEBSITE SCREENSHOT*\n\n` +
-              `🚀 *Capturing website...*\n\n` +
-              `🔗 ${url}\n\n` +
-              `⏳ Please wait...`
+              `🚀 *Preparing to capture...*\n\n` +
+              `🔗 ${domain}\n` +
+              `⏳ This may take 10-20 seconds...`
       }, { quoted: m });
 
-      // ====== API REQUEST (Using Keith's Screenshot API) ======
-      const apiUrl = 'https://apiskeith.vercel.app/tool/screenshot';
+      // ====== TRY MULTIPLE SCREENSHOT SERVICES ======
+      let screenshotBuffer = null;
+      let serviceUsed = '';
+      let attempts = [];
       
-      console.log(`📸 Screenshot Request for: ${url}`);
-      
-      const response = await axios({
-        method: 'GET',
-        url: apiUrl,
-        params: {
-          url: url
+      // List of screenshot services to try (in order)
+      const screenshotServices = [
+        {
+          name: 'Keith API',
+          url: 'https://apiskeith.vercel.app/tool/screenshot',
+          method: 'GET',
+          params: { url: url },
+          timeout: 15000, // 15 seconds max per attempt
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'Accept': 'image/*',
+            'Referer': 'https://apiskeith.vercel.app/'
+          }
         },
-        timeout: 45000, // 45 seconds for screenshots
-        responseType: 'arraybuffer', // Important for images
-        headers: {
-          'User-Agent': 'WolfBot-Screenshot/1.0',
-          'Accept': 'image/*',
-          'X-Requested-With': 'WolfBot',
-          'Referer': 'https://apiskeith.vercel.app/',
-          'Origin': 'https://apiskeith.vercel.app'
+        {
+          name: 'ScreenshotAPI.net',
+          url: `https://shot.screenshotapi.net/screenshot`,
+          method: 'GET',
+          params: {
+            url: url,
+            token: 'SCREENSHOTAPI-TOKEN', // Free tier works without token for limited requests
+            output: 'image',
+            file_type: 'png',
+            wait_for_event: 'load'
+          },
+          timeout: 20000
         },
-        validateStatus: function (status) {
-          return status >= 200 && status < 500;
+        {
+          name: 'PhantomJSCloud (Alternative)',
+          url: 'https://phantomjscloud.com/api/browser/v2/demo/',
+          method: 'POST',
+          data: {
+            url: url,
+            renderType: 'png',
+            width: 1280,
+            height: 800
+          },
+          timeout: 25000
         }
+      ];
+
+      // ====== UPDATE STATUS ======
+      await sock.sendMessage(jid, {
+        text: `📸 *WEBSITE SCREENSHOT*\n` +
+              `🔗 ${domain}\n` +
+              `🔍 *Trying service 1/3...*\n` +
+              `⏳ Please wait...`,
+        edit: statusMsg.key
       });
 
-      console.log(`✅ Screenshot Response status: ${response.status}`);
-      console.log(`📊 Response size: ${response.data?.length || 0} bytes`);
-      
-      // Check if response is an image
-      const contentType = response.headers['content-type'] || '';
-      const isImage = contentType.includes('image/');
-      
-      if (!isImage) {
-        throw new Error('API did not return an image');
+      // Try each service until one works
+      for (let i = 0; i < screenshotServices.length; i++) {
+        const service = screenshotServices[i];
+        
+        try {
+          console.log(`📸 Trying screenshot service ${i+1}: ${service.name}`);
+          
+          await sock.sendMessage(jid, {
+            text: `📸 *WEBSITE SCREENSHOT*\n` +
+                  `🔗 ${domain}\n` +
+                  `🔍 *Trying service ${i+1}/3: ${service.name}...*\n` +
+                  `⏳ ${i === 0 ? 'First attempt...' : 'Alternative service...'}`,
+            edit: statusMsg.key
+          });
+          
+          const response = await axios({
+            method: service.method,
+            url: service.url,
+            params: service.params,
+            data: service.data,
+            timeout: service.timeout || 15000,
+            responseType: 'arraybuffer',
+            headers: service.headers || {
+              'User-Agent': 'WolfBot-Screenshot/1.0',
+              'Accept': 'image/*'
+            }
+          });
+
+          // Check if response is an image
+          const contentType = response.headers['content-type'] || '';
+          const isImage = contentType.includes('image/');
+          
+          if (!isImage) {
+            console.log(`❌ Service ${service.name} returned non-image: ${contentType}`);
+            attempts.push(`${service.name}: Wrong content type (${contentType})`);
+            continue;
+          }
+          
+          // Check image size (should be reasonable)
+          if (response.data.length < 5000) {
+            console.log(`❌ Service ${service.name} returned tiny image: ${response.data.length} bytes`);
+            attempts.push(`${service.name}: Image too small (${response.data.length} bytes)`);
+            continue;
+          }
+          
+          // Success!
+          screenshotBuffer = response.data;
+          serviceUsed = service.name;
+          console.log(`✅ Service ${service.name} worked! Image size: ${response.data.length} bytes`);
+          break;
+          
+        } catch (serviceError) {
+          console.log(`❌ Service ${service.name} failed:`, serviceError.message);
+          attempts.push(`${service.name}: ${serviceError.message.substring(0, 50)}`);
+          
+          // Continue to next service
+          continue;
+        }
       }
-      
-      // Check image size
-      const imageSize = response.data.length;
-      if (imageSize < 1000) {
-        throw new Error('Screenshot too small or invalid');
+
+      // ====== CHECK IF ANY SERVICE WORKED ======
+      if (!screenshotBuffer) {
+        throw new Error(`All screenshot services failed:\n${attempts.join('\n')}`);
       }
       
       // ====== UPDATE STATUS ======
       await sock.sendMessage(jid, {
         text: `📸 *WEBSITE SCREENSHOT*\n` +
-              `🚀 *Capturing...* ✅\n` +
+              `✅ *Capture successful!*\n` +
               `🖼️ *Processing image...*\n` +
-              `⚡ *Sending screenshot...*`,
+              `📤 *Sending to WhatsApp...*`,
         edit: statusMsg.key
       });
 
-      // ====== DETECT IMAGE FORMAT ======
-      let imageFormat = 'jpeg';
-      if (contentType.includes('png')) imageFormat = 'png';
-      if (contentType.includes('gif')) imageFormat = 'gif';
-      if (contentType.includes('webp')) imageFormat = 'webp';
-      
       // ====== CREATE CAPTION ======
-      const domain = new URL(url).hostname;
       const now = new Date();
       const timestamp = now.toLocaleString('en-US', {
         weekday: 'short',
         month: 'short',
         day: 'numeric',
-        year: 'numeric',
         hour: '2-digit',
         minute: '2-digit'
       });
       
-      const fileSize = formatBytes(imageSize);
+      const fileSize = formatBytes(screenshotBuffer.length);
       
       const caption = `📸 *WEBSITE SCREENSHOT*\n\n` +
                      `🌐 *Website:* ${domain}\n` +
                      `🔗 *URL:* ${url}\n` +
                      `📅 *Captured:* ${timestamp}\n` +
                      `💾 *Size:* ${fileSize}\n` +
-                     `🖼️ *Format:* ${imageFormat.toUpperCase()}\n\n` +
+                     `🔧 *Service:* ${serviceUsed}\n` +
+                     `⏱️ *Time:* ${now.getTime() - statusMsg.messageTimestamp * 1000}ms\n\n` +
                      `⚡ *Powered by WolfBot*`;
 
       // ====== SEND SCREENSHOT ======
-      console.log(`📤 Sending screenshot to WhatsApp (${fileSize})`);
+      console.log(`📤 Sending screenshot to WhatsApp (${fileSize}, ${serviceUsed})`);
       
       await sock.sendMessage(jid, {
-        image: response.data,
+        image: screenshotBuffer,
         caption: caption,
-        mimetype: contentType,
-        fileName: `screenshot_${domain}_${Date.now()}.${imageFormat}`
+        mimetype: 'image/png',
+        fileName: `screenshot_${domain}_${Date.now()}.png`
       }, { quoted: m });
 
-      console.log(`✅ Screenshot sent successfully for ${domain}`);
+      console.log(`✅ Screenshot sent successfully for ${domain} using ${serviceUsed}`);
 
     } catch (error) {
-      console.error('❌ [Screenshot] ERROR:', error);
-      console.error('❌ Error stack:', error.stack);
+      console.error('❌ [Screenshot] ERROR:', error.message);
       
       let errorMessage = `❌ *SCREENSHOT FAILED*\n\n`;
       
       // Detailed error handling
-      if (error.code === 'ECONNREFUSED') {
-        errorMessage += `• Screenshot API server is down\n`;
-        errorMessage += `• Please try again later\n`;
-      } else if (error.code === 'ETIMEDOUT') {
-        errorMessage += `• Request timed out (45s)\n`;
-        errorMessage += `• Website may be loading slowly\n`;
-        errorMessage += `• Try smaller/simpler website\n`;
+      if (error.message.includes('All screenshot services failed')) {
+        errorMessage += `• All screenshot services are unavailable\n`;
+        errorMessage += `• Common reasons:\n`;
+        errorMessage += `   - Website blocks screenshots\n`;
+        errorMessage += `   - Services rate-limited\n`;
+        errorMessage += `   - Website requires JavaScript\n`;
+      } else if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+        errorMessage += `• Request timed out\n`;
+        errorMessage += `• Website may be:\n`;
+        errorMessage += `   - Loading slowly\n`;
+        errorMessage += `   - Too complex\n`;
+        errorMessage += `   - Blocking bots\n`;
       } else if (error.code === 'ENOTFOUND') {
-        errorMessage += `• Cannot connect to website\n`;
-        errorMessage += `• Check if website exists: ${url}\n`;
-        errorMessage += `• Check internet connection\n`;
-      } else if (error.code === 'ECONNABORTED') {
-        errorMessage += `• Connection aborted\n`;
-        errorMessage += `• Network issue detected\n`;
-      } else if (error.response?.status === 429) {
-        errorMessage += `• Rate limit exceeded\n`;
-        errorMessage += `• Too many screenshot requests\n`;
-        errorMessage += `• Wait 2-3 minutes\n`;
-      } else if (error.response?.status === 404) {
-        errorMessage += `• Screenshot endpoint not found\n`;
-        errorMessage += `• API may have changed\n`;
-      } else if (error.response?.status === 500) {
-        errorMessage += `• Screenshot service error\n`;
-        errorMessage += `• Website may be blocking screenshots\n`;
-      } else if (error.response?.status === 403) {
-        errorMessage += `• Access forbidden\n`;
-        errorMessage += `• Website blocks screenshots\n`;
+        errorMessage += `• Website not found: ${domain}\n`;
+        errorMessage += `• Check if website exists\n`;
+        errorMessage += `• Try: google.com, github.com\n`;
+      } else if (error.response?.status === 403 || error.response?.status === 429) {
+        errorMessage += `• Access blocked/rate-limited\n`;
+        errorMessage += `• Website may block screenshots\n`;
         errorMessage += `• Try different website\n`;
-      } else if (error.response?.status === 400) {
-        errorMessage += `• Bad request\n`;
-        errorMessage += `• URL may be invalid: ${url}\n`;
-      } else if (error.message?.includes('Invalid URL')) {
-        errorMessage += `• Invalid URL format\n`;
-        errorMessage += `• Use: https://example.com\n`;
-      } else if (error.message?.includes('did not return an image')) {
-        errorMessage += `• API returned non-image content\n`;
-        errorMessage += `• Screenshot service may be down\n`;
-      } else if (error.message?.includes('too small')) {
-        errorMessage += `• Screenshot too small\n`;
-        errorMessage += `• Website may be empty/blocked\n`;
-      } else if (error.message) {
-        errorMessage += `• Error: ${error.message}\n`;
+      } else {
+        errorMessage += `• Error: ${error.message.substring(0, 100)}\n`;
       }
       
       errorMessage += `\n🔧 *Troubleshooting:*\n`;
-      errorMessage += `1. Check URL: ${url}\n`;
-      errorMessage += `2. Try without https:// (auto-added)\n`;
-      errorMessage += `3. Wait 1-2 minutes before retry\n`;
-      errorMessage += `4. Try popular websites first:\n`;
+      errorMessage += `1. Try simpler websites:\n`;
       errorMessage += `   • google.com\n`;
-      errorMessage += `   • github.com\n`;
       errorMessage += `   • wikipedia.org\n`;
-      errorMessage += `5. Website may block screenshots\n`;
+      errorMessage += `   • github.com\n`;
+      errorMessage += `2. Wait 1 minute before retry\n`;
+      errorMessage += `3. Try without https://\n`;
+      errorMessage += `4. Some sites block screenshots\n`;
+      
+      // Add attempts log if available
+      if (error.message.includes('All screenshot services failed') && error.message.includes('\n')) {
+        const attemptsLog = error.message.split('\n').slice(1).join('\n');
+        errorMessage += `\n📊 *Attempts:*\n${attemptsLog.substring(0, 200)}`;
+      }
       
       // Try to send error message
       try {
-        console.log('📤 Sending error message to user');
         await sock.sendMessage(jid, {
           text: errorMessage
         }, { quoted: m });
@@ -236,40 +298,29 @@ function formatBytes(bytes, decimals = 2) {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
 }
 
-// Validate URL (more thorough)
-function validateUrl(urlString) {
+// Alternative screenshot function using browserless
+async function tryBrowserlessScreenshot(url) {
   try {
-    const url = new URL(urlString);
+    // This would require browserless.io API key
+    // Leaving as example for future implementation
+    const response = await axios.post('https://chrome.browserless.io/screenshot', {
+      url: url,
+      options: {
+        type: 'png',
+        fullPage: true,
+        encoding: 'binary'
+      }
+    }, {
+      headers: {
+        'Cache-Control': 'no-cache',
+        'Content-Type': 'application/json'
+      },
+      responseType: 'arraybuffer',
+      timeout: 20000
+    });
     
-    // Check protocol
-    if (!['http:', 'https:'].includes(url.protocol)) {
-      return false;
-    }
-    
-    // Check domain
-    if (!url.hostname || url.hostname.length < 3) {
-      return false;
-    }
-    
-    // Check for common invalid patterns
-    if (url.hostname.includes('..')) {
-      return false;
-    }
-    
-    return true;
-  } catch (err) {
-    return false;
-  }
-}
-
-// Extract domain from URL for display
-function getCleanDomain(url) {
-  try {
-    const domain = new URL(url).hostname;
-    
-    // Remove www. prefix
-    return domain.replace(/^www\./, '');
+    return response.data;
   } catch (error) {
-    return url;
+    throw error;
   }
 }
